@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A trademark product in the JAF shop.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "price": { "type": "number" },
+        "comparePrice": { "type": "number" },
+        "description": { "type": "string" },
+        "images": {
+          "type": "array"
+        },
+        "category": { "type": "string" },
+        "sizes": {
+          "type": "array"
+        },
+        "colors": {
+          "type": "array"
+        },
+        "inStock": { "type": "boolean" },
+        "isNew": { "type": "boolean" },
+        "isSale": { "type": "boolean" }
+      },
+      "required": ["id", "name", "price", "images"]
+    },
+    "DeliveryZone": {
+      "title": "DeliveryZone",
+      "description": "Delivery zoning and shipping pricing configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "fee": { "type": "number" },
+        "eta": { "type": "string" }
+      },
+      "required": ["id", "label", "fee", "eta"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Promotional coupon code details.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "percent": { "type": "number" },
+        "expiry": { "type": "string" }
+      },
+      "required": ["code", "percent", "expiry"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A successful customer purchase order.",
+      "type": "object",
+      "properties": {
+        "ref": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "customer": { "type": "object" },
+        "delivery": { "type": "object" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "discount": { "type": "number" },
+        "total": { "type": "number" },
+        "status": { "type": "string" },
+        "rider": { "type": "string" },
+        "couponCode": { "type": "string" }
+      },
+      "required": ["ref", "createdAt", "customer", "delivery", "items", "subtotal", "total", "status"]
+    },
+    "Branding": {
+      "title": "Branding",
+      "description": "App branding configurations.",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string" },
+        "logoShape": { "type": "string" }
+      },
+      "required": ["logoUrl", "logoShape"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Registered user credentials and profile details.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "password": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "password"]
+    }
+  },
+  "firestore": {
+    "products": {
+      "schema": "Product",
+      "description": "List of all products and drops."
+    },
+    "zones": {
+      "schema": "DeliveryZone",
+      "description": "State-wide and city-wide physical delivery zones."
+    },
+    "coupons": {
+      "schema": "Coupon",
+      "description": "Active promotional discount and coupon codes."
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "All customer orders submitted."
+    },
+    "settings": {
+      "schema": "Branding",
+      "description": "Global branding parameters like storefront logos."
+    },
+    "users": {
+      "schema": "User",
+      "description": "Secure record of registered user profiles."
+    }
+  }
+}

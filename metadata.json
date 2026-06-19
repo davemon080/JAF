@@ -1,0 +1,6 @@
+{
+  "name": "JAF — Just A Friend",
+  "description": "An ironic streetwear brand for the situationship era, with same-week delivery to Abuja and Lafia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
