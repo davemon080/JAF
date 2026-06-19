@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { auth, type CustomUser } from "@/lib/firebase";
+import { auth, type CustomUser, fetchOrdersFromFirestore } from "@/lib/firebase";
 import { useOrders, useAdmin } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
 import { toast } from "sonner";
@@ -55,6 +55,20 @@ function AccountPage() {
     });
     return () => unsubscribe();
   }, []);
+
+  const setOrdersRaw = useOrders((s) => s.setOrdersRaw);
+
+  useEffect(() => {
+    if (user) {
+      fetchOrdersFromFirestore()
+        .then((latestOrders) => {
+          if (latestOrders) {
+            setOrdersRaw(latestOrders);
+          }
+        })
+        .catch((err) => console.error("Error syncing orders:", err));
+    }
+  }, [user, setOrdersRaw]);
 
   const allOrders = useOrders((s) => s.orders);
 

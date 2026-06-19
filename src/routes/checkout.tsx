@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { z } from "zod";
 import { useCart, useCatalog, useCoupons, useOrders, type Order } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
 import { toast } from "sonner";
+import { auth } from "@/lib/firebase";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -41,6 +42,21 @@ function CheckoutPage() {
 
   const [step, setStep] = useState(0);
   const [contact, setContact] = useState({ name: "", email: "", phone: "" });
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+      setUser(u);
+      if (u) {
+        setContact((prev) => ({
+          ...prev,
+          name: prev.name || u.displayName || "",
+          email: prev.email || u.email || "",
+        }));
+      }
+    });
+    return () => unsubscribe();
+  }, []);
   const [delivery, setDelivery] = useState({ zoneId: "abuja" as "abuja" | "lafia", address: "", notes: "" });
   const [coupon, setCoupon] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
