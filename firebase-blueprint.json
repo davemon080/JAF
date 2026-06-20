@@ -81,7 +81,7 @@
     },
     "User": {
       "title": "User",
-      "description": "Registered user credentials and profile details.",
+      "description": "Registered user credentials, profile details, and delivery address.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -89,9 +89,32 @@
         "fullName": { "type": "string" },
         "password": { "type": "string" },
         "createdAt": { "type": "string" },
-        "lastLoginAt": { "type": "string" }
+        "lastLoginAt": { "type": "string" },
+        "deliveryDetails": {
+          "type": "object",
+          "properties": {
+            "zoneId": { "type": "string" },
+            "address": { "type": "string" },
+            "notes": { "type": "string" },
+            "phone": { "type": "string" },
+            "fullName": { "type": "string" }
+          }
+        }
       },
       "required": ["uid", "email", "password"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "User feedback or contact messages submitted on the contact us page.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "message", "createdAt"]
     }
   },
   "firestore": {
@@ -118,6 +141,10 @@
     "users": {
       "schema": "User",
       "description": "Secure record of registered user profiles."
+    },
+    "messages": {
+      "schema": "Message",
+      "description": "Message entries submitted by users from the contact us page."
     }
   }
 }
