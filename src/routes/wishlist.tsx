@@ -21,11 +21,16 @@ function WishlistPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-12">
-      <h1 className="font-display text-5xl md:text-7xl font-semibold tracking-tighter mb-10">WISHLIST.</h1>
+      <h1 className="font-display text-5xl md:text-7xl font-semibold tracking-tighter mb-10">
+        WISHLIST.
+      </h1>
       {items.length === 0 ? (
         <div className="border border-dashed border-ink/20 py-24 text-center">
           <p className="text-ink-soft mb-6">Nothing saved yet.</p>
-          <Link to="/shop" className="bg-ink text-canvas text-xs font-medium tracking-widest uppercase px-5 py-3">
+          <Link
+            to="/shop"
+            className="bg-ink text-canvas text-xs font-medium tracking-widest uppercase px-5 py-3"
+          >
             Browse the drop
           </Link>
         </div>

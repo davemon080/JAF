@@ -1,11 +1,18 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { auth, type CustomUser, fetchOrdersFromFirestore } from "@/lib/firebase";
-import { useOrders, useAdmin } from "@/lib/store";
+import {
+  auth,
+  type CustomUser,
+  fetchOrdersFromFirestore,
+  getUserDeliveryDetails,
+  saveUserDeliveryDetails,
+} from "@/lib/firebase";
+import { useOrders, useAdmin, useCatalog } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
 import { toast } from "sonner";
 import { JafMark } from "@/components/jaf-logo";
-import { LogOut, Package, ExternalLink, Calendar, Receipt } from "lucide-react";
+import { LogOut, Package, ExternalLink, Calendar, Receipt, MapPin, Edit3 } from "lucide-react";
 
 export const Route = createFileRoute("/account")({
   head: () => ({
@@ -35,7 +42,12 @@ function AccountPage() {
     onConfirm: () => {},
   });
 
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void, variant: "danger" | "warning" | "info" = "info") => {
+  const triggerConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    variant: "danger" | "warning" | "info" = "info",
+  ) => {
     setConfirmState({
       isOpen: true,
       title,
@@ -44,17 +56,98 @@ function AccountPage() {
         onConfirm();
         setConfirmState((prev) => ({ ...prev, isOpen: false }));
       },
-      variant
+      variant,
     });
   };
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
+      if (u && (u.role === "admin" || u.email.toLowerCase().trim() === "adminjaf@gmail.com")) {
+        toast.error("Administrators cannot use a regular user's account.", { id: "admin-block" });
+        navigate({ to: "/admin" });
+        return;
+      }
       setUser(u);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [navigate]);
+
+  const [isEditingDelivery, setIsEditingDelivery] = useState(false);
+  const [savedDelivery, setSavedDelivery] = useState<any>(null);
+  const [loadingDelivery, setLoadingDelivery] = useState(false);
+  const [deliveryForm, setDeliveryForm] = useState({
+    fullName: "",
+    phone: "",
+    zoneId: "abuja" as "abuja" | "lafia",
+    address: "",
+    notes: "",
+  });
+
+  const zones = useCatalog((s) => s.zones);
+
+  useEffect(() => {
+    if (user && user.email) {
+      setLoadingDelivery(true);
+      getUserDeliveryDetails(user.email)
+        .then((details) => {
+          if (details) {
+            setSavedDelivery(details);
+            setDeliveryForm({
+              fullName: details.fullName || "",
+              phone: details.phone || "",
+              zoneId: details.zoneId || "abuja",
+              address: details.address || "",
+              notes: details.notes || "",
+            });
+          }
+        })
+        .catch((e) => console.error("Error fetching delivery info:", e))
+        .finally(() => setLoadingDelivery(false));
+    }
+  }, [user]);
+
+  const handleSaveDelivery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !user.email) return;
+
+    if (!deliveryForm.fullName.trim()) {
+      toast.error("Contact name is required.");
+      return;
+    }
+    if (!deliveryForm.phone.trim()) {
+      toast.error("Phone number is required.");
+      return;
+    }
+    if (deliveryForm.address.trim().length < 8) {
+      toast.error("Full shipping address is required.");
+      return;
+    }
+
+    try {
+      setLoadingDelivery(true);
+      await saveUserDeliveryDetails(user.email, {
+        zoneId: deliveryForm.zoneId,
+        address: deliveryForm.address.trim(),
+        notes: deliveryForm.notes.trim(),
+        phone: deliveryForm.phone.trim(),
+        fullName: deliveryForm.fullName.trim(),
+      });
+      setSavedDelivery({
+        fullName: deliveryForm.fullName.trim(),
+        phone: deliveryForm.phone.trim(),
+        zoneId: deliveryForm.zoneId,
+        address: deliveryForm.address.trim(),
+        notes: deliveryForm.notes.trim(),
+      });
+      setIsEditingDelivery(false);
+      toast.success("Default shipping and contact details updated successfully!");
+    } catch (err) {
+      toast.error("Failed to update delivery details.");
+    } finally {
+      setLoadingDelivery(false);
+    }
+  };
 
   const setOrdersRaw = useOrders((s) => s.setOrdersRaw);
 
@@ -74,7 +167,7 @@ function AccountPage() {
 
   const orders = user
     ? allOrders.filter(
-        (o) => o.customer.email.toLowerCase().trim() === user.email.toLowerCase().trim()
+        (o) => o.customer.email.toLowerCase().trim() === user.email.toLowerCase().trim(),
       )
     : [];
 
@@ -98,7 +191,7 @@ function AccountPage() {
         useOrders.getState().remove(orderRef);
         toast.success(`Order ${orderRef} has been canceled successfully.`);
       },
-      "danger"
+      "danger",
     );
   };
 
@@ -106,7 +199,9 @@ function AccountPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center bg-canvas text-ink">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink"></div>
-        <p className="text-xs font-medium tracking-widest uppercase text-ink-soft mt-4">Syncing account...</p>
+        <p className="text-xs font-medium tracking-widest uppercase text-ink-soft mt-4">
+          Syncing account...
+        </p>
       </div>
     );
   }
@@ -115,12 +210,14 @@ function AccountPage() {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center bg-canvas text-ink px-4 py-16">
         <JafMark size={64} className="mb-6" />
-        <h1 className="font-display text-3xl font-semibold tracking-tighter mb-2">ACCESS RESTRICTED</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tighter mb-2">
+          ACCESS RESTRICTED
+        </h1>
         <p className="text-sm text-ink-soft text-center max-w-sm mb-8">
           You must be signed in to view your account, order history, and exclusive benefits.
         </p>
-        <Link 
-          to="/auth" 
+        <Link
+          to="/auth"
           className="bg-ink text-canvas hover:bg-gold hover:text-ink px-6 py-3 text-xs font-semibold tracking-widest uppercase transition-colors"
         >
           Sign In / Create Account
@@ -139,7 +236,9 @@ function AccountPage() {
               {user.displayName ? user.displayName.charAt(0) : user.email.charAt(0)}
             </div>
             <div>
-              <p className="text-[10px] tracking-[0.25em] text-gold uppercase font-semibold font-mono">Member Profile</p>
+              <p className="text-[10px] tracking-[0.25em] text-gold uppercase font-semibold font-mono">
+                Member Profile
+              </p>
               <h1 className="font-display text-2xl md:text-3xl font-semibold tracking-tighter text-ink mt-0.5">
                 {user.displayName || "Anonymous Friend"}
               </h1>
@@ -155,6 +254,174 @@ function AccountPage() {
           </button>
         </div>
 
+        {/* Default Delivery Details Block */}
+        <div className="border border-ink/10 bg-card p-6 md:p-8 space-y-6">
+          <div className="flex items-center justify-between border-b border-ink/10 pb-4">
+            <h2 className="font-display text-lg font-semibold tracking-tight uppercase flex items-center gap-2">
+              <MapPin className="size-4 text-gold" />
+              Default Delivery Address
+            </h2>
+            {!isEditingDelivery && savedDelivery && (
+              <button
+                onClick={() => setIsEditingDelivery(true)}
+                className="text-[10px] tracking-widest uppercase text-ink-soft hover:text-gold flex items-center gap-1.5 transition-colors"
+              >
+                <Edit3 className="size-3" />
+                Change details
+              </button>
+            )}
+          </div>
+
+          {loadingDelivery ? (
+            <div className="py-4 text-xs font-mono text-ink-soft">Syncing details...</div>
+          ) : isEditingDelivery || !savedDelivery ? (
+            <form onSubmit={handleSaveDelivery} className="space-y-4 max-w-xl">
+              {!savedDelivery && (
+                <p className="text-xs text-ink-soft bg-gold/5 border border-gold/15 p-3">
+                  No default delivery address configured yet. Configured details will be prefilled
+                  during checkout for frictionless purchasing.
+                </p>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] tracking-widest uppercase font-semibold mb-1.5 text-ink-soft">
+                    Contact Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryForm.fullName}
+                    onChange={(e) => setDeliveryForm({ ...deliveryForm, fullName: e.target.value })}
+                    className="w-full bg-transparent border border-ink/10 focus:border-ink px-3 py-2 text-sm outline-none"
+                    placeholder="Recipient name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-widest uppercase font-semibold mb-1.5 text-ink-soft">
+                    Phone (WhatsApp)
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryForm.phone}
+                    onChange={(e) => setDeliveryForm({ ...deliveryForm, phone: e.target.value })}
+                    className="w-full bg-transparent border border-ink/10 focus:border-ink px-3 py-2 text-sm outline-none"
+                    placeholder="+234..."
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase font-semibold mb-1.5 text-ink-soft">
+                  Delivery Zone
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {zones.map((z) => (
+                    <button
+                      type="button"
+                      key={z.id}
+                      onClick={() =>
+                        setDeliveryForm({ ...deliveryForm, zoneId: z.id as "abuja" | "lafia" })
+                      }
+                      className={`text-left p-3 border ${deliveryForm.zoneId === z.id ? "border-ink bg-ink/5" : "border-ink/10"} transition-all`}
+                    >
+                      <p className="font-semibold uppercase text-xs">{z.label}</p>
+                      <p className="text-[10px] text-ink-soft mt-0.5">{z.estimate}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase font-semibold mb-1.5 text-ink-soft">
+                  Physical Address
+                </label>
+                <textarea
+                  rows={2}
+                  value={deliveryForm.address}
+                  onChange={(e) => setDeliveryForm({ ...deliveryForm, address: e.target.value })}
+                  className="w-full bg-transparent border border-ink/10 focus:border-ink px-3 py-2 text-sm outline-none"
+                  placeholder="Street name, house number, estate..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase font-semibold mb-1.5 text-ink-soft">
+                  Optional Delivery Notes
+                </label>
+                <input
+                  type="text"
+                  value={deliveryForm.notes}
+                  onChange={(e) => setDeliveryForm({ ...deliveryForm, notes: e.target.value })}
+                  className="w-full bg-transparent border border-ink/10 focus:border-ink px-3 py-2 text-sm outline-none"
+                  placeholder="e.g. Leave with security, yellow gate..."
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="bg-ink hover:bg-gold hover:text-ink text-canvas font-semibold text-[10px] tracking-widest uppercase px-5 py-3 transition-colors"
+                >
+                  Save Address
+                </button>
+                {savedDelivery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryForm({
+                        fullName: savedDelivery.fullName || "",
+                        phone: savedDelivery.phone || "",
+                        zoneId: savedDelivery.zoneId || "abuja",
+                        address: savedDelivery.address || "",
+                        notes: savedDelivery.notes || "",
+                      });
+                      setIsEditingDelivery(false);
+                    }}
+                    className="border border-ink/15 hover:bg-ink/5 text-ink-soft text-[10px] tracking-widest uppercase px-4 py-3 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-6 text-sm">
+              <div className="space-y-4">
+                <div>
+                  <span className="text-[9px] uppercase font-bold tracking-wider text-ink-soft block font-mono">
+                    Recipient Contact
+                  </span>
+                  <p className="font-semibold text-ink mt-0.5">{savedDelivery.fullName}</p>
+                  <p className="text-xs text-ink-soft font-mono mt-0.5">{savedDelivery.phone}</p>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase font-bold tracking-wider text-ink-soft block font-mono">
+                    Preferred Region
+                  </span>
+                  <p className="font-semibold text-ink uppercase mt-0.5">
+                    {savedDelivery.zoneId === "abuja" ? "Abuja (FCT)" : "Lafia"}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <span className="text-[9px] uppercase font-bold tracking-wider text-ink-soft block font-mono">
+                    Shipping Residence
+                  </span>
+                  <p className="text-ink mt-0.5 whitespace-pre-wrap">{savedDelivery.address}</p>
+                </div>
+                {savedDelivery.notes && (
+                  <div>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-ink-soft block font-mono">
+                      Delivery Memo
+                    </span>
+                    <p className="text-xs text-ink-soft mt-0.5 italic">"{savedDelivery.notes}"</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Orders Block */}
         <div>
           <div className="flex items-center justify-between border-b border-ink/10 pb-4 mb-6">
@@ -162,8 +429,8 @@ function AccountPage() {
               <Package className="size-5" />
               Order History ({orders.length})
             </h2>
-            <Link 
-              to="/shop" 
+            <Link
+              to="/shop"
               className="text-[10px] tracking-widest uppercase text-ink-soft hover:text-gold hover:underline underline-offset-4"
             >
               Shop new drop →
@@ -172,7 +439,9 @@ function AccountPage() {
 
           {orders.length === 0 ? (
             <div className="border border-dashed border-ink/25 text-center py-16 px-4">
-              <p className="text-sm text-ink-soft mb-6">You haven't ordered anything yet. What are you waiting for?</p>
+              <p className="text-sm text-ink-soft mb-6">
+                You haven't ordered anything yet. What are you waiting for?
+              </p>
               <Link
                 to="/shop"
                 className="inline-block bg-ink text-canvas hover:bg-gold hover:text-ink px-6 py-3 text-xs font-semibold tracking-widest uppercase transition-all duration-200"
@@ -183,13 +452,18 @@ function AccountPage() {
           ) : (
             <div className="space-y-6">
               {orders.map((o) => (
-                <div key={o.ref} className="border border-ink/10 bg-canvas hover:border-gold/30 transition-colors">
+                <div
+                  key={o.ref}
+                  className="border border-ink/10 bg-canvas hover:border-gold/30 transition-colors"
+                >
                   {/* Order Meta Bar */}
                   <div className="bg-ink/5 p-4 flex flex-wrap justify-between items-center gap-4 border-b border-ink/10">
                     <div className="flex items-center gap-4">
                       <div>
-                        <p className="text-[9px] text-ink-soft uppercase tracking-wider">Reference</p>
-                        <Link 
+                        <p className="text-[9px] text-ink-soft uppercase tracking-wider">
+                          Reference
+                        </p>
+                        <Link
                           to="/track"
                           search={{ ref: o.ref }}
                           className="font-mono text-sm font-semibold tracking-widest text-ink hover:text-gold flex items-center gap-1.5"
@@ -201,7 +475,9 @@ function AccountPage() {
                       </div>
                       <div className="hidden sm:block h-6 w-px bg-ink/15" />
                       <div className="hidden sm:block">
-                        <p className="text-[9px] text-ink-soft uppercase tracking-wider">Date Ordered</p>
+                        <p className="text-[9px] text-ink-soft uppercase tracking-wider">
+                          Date Ordered
+                        </p>
                         <p className="text-xs font-medium flex items-center gap-1 text-ink/85">
                           <Calendar className="size-3 text-ink-soft" />
                           {new Date(o.createdAt).toLocaleDateString("en-NG", {
@@ -212,10 +488,12 @@ function AccountPage() {
                         </p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <p className="text-[9px] text-ink-soft uppercase tracking-wider">Total amount</p>
+                        <p className="text-[9px] text-ink-soft uppercase tracking-wider">
+                          Total amount
+                        </p>
                         <p className="text-sm font-semibold text-ink flex items-center gap-1">
                           <Receipt className="size-3 text-gold" />
                           {formatNaira(o.total)}
@@ -223,20 +501,22 @@ function AccountPage() {
                       </div>
                       <div className="h-6 w-px bg-ink/15" />
                       <div>
-                        <span className={`inline-block px-2.5 py-1 text-[10px] tracking-wider uppercase font-semibold ${
-                          o.status === "delivered" 
-                            ? "bg-green-100 text-green-800 border border-green-250"
-                            : o.status === "out"
-                            ? "bg-blue-100 text-blue-800 border border-blue-250"
-                            : "bg-gold/15 text-ink border border-gold/40"
-                        }`}>
-                          {o.status === "delivered" 
+                        <span
+                          className={`inline-block px-2.5 py-1 text-[10px] tracking-wider uppercase font-semibold ${
+                            o.status === "delivered"
+                              ? "bg-green-100 text-green-800 border border-green-250"
+                              : o.status === "out"
+                                ? "bg-blue-100 text-blue-800 border border-blue-250"
+                                : "bg-gold/15 text-ink border border-gold/40"
+                          }`}
+                        >
+                          {o.status === "delivered"
                             ? "Delivered"
                             : o.status === "out"
-                            ? "Out for Delivery"
-                            : o.status === "packed"
-                            ? "Packed"
-                            : "Received"}
+                              ? "Out for Delivery"
+                              : o.status === "packed"
+                                ? "Packed"
+                                : "Received"}
                         </span>
                       </div>
                     </div>
@@ -247,7 +527,9 @@ function AccountPage() {
                     {o.items.map((item, idx) => (
                       <div key={idx} className="flex justify-between items-center text-xs gap-4">
                         <div className="flex-1">
-                          <p className="font-semibold text-ink uppercase tracking-wide">{item.name}</p>
+                          <p className="font-semibold text-ink uppercase tracking-wide">
+                            {item.name}
+                          </p>
                           <div className="flex flex-wrap gap-2 text-[10px] text-ink-soft uppercase mt-0.5">
                             <span>Qty: {item.qty}</span>
                             <span>•</span>
@@ -257,19 +539,24 @@ function AccountPage() {
                           </div>
                         </div>
                         <div className="text-right whitespace-nowrap">
-                          <p className="font-medium text-ink">{formatNaira(item.price * item.qty)}</p>
+                          <p className="font-medium text-ink">
+                            {formatNaira(item.price * item.qty)}
+                          </p>
                           {item.qty > 1 && (
-                            <p className="text-[10px] text-ink-soft font-mono">({formatNaira(item.price)} each)</p>
+                            <p className="text-[10px] text-ink-soft font-mono">
+                              ({formatNaira(item.price)} each)
+                            </p>
                           )}
                         </div>
                       </div>
                     ))}
-                    
+
                     {/* Shipping Address Footer */}
                     <div className="border-t border-ink/5 pt-3.5 mt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center text-[11px] text-ink-soft gap-4">
                       <div className="space-y-1">
                         <p>
-                          <strong className="text-ink">Deliver to:</strong> {o.delivery.address} ({o.delivery.zoneLabel})
+                          <strong className="text-ink">Deliver to:</strong> {o.delivery.address} (
+                          {o.delivery.zoneLabel})
                         </p>
                         {o.rider && (
                           <p className="font-mono">
@@ -279,12 +566,14 @@ function AccountPage() {
                       </div>
 
                       {(() => {
-                        const elapsedHrs = (Date.now() - new Date(o.createdAt).getTime()) / (1000 * 60 * 60);
+                        const elapsedHrs =
+                          (Date.now() - new Date(o.createdAt).getTime()) / (1000 * 60 * 60);
                         const canCancel = elapsedHrs <= 12;
                         const remainingMinutes = Math.max(0, Math.round((12 - elapsedHrs) * 60));
-                        const remainingFormatted = remainingMinutes >= 60 
-                          ? `${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m` 
-                          : `${remainingMinutes}m`;
+                        const remainingFormatted =
+                          remainingMinutes >= 60
+                            ? `${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m`
+                            : `${remainingMinutes}m`;
 
                         return (
                           <div className="flex items-center gap-2 mt-2 sm:mt-0">
@@ -348,7 +637,7 @@ function ConfirmationModal({
   cancelLabel = "Cancel",
   onConfirm,
   onCancel,
-  variant = "info"
+  variant = "info",
 }: ConfirmationModalProps) {
   if (!isOpen) return null;
 
@@ -356,15 +645,11 @@ function ConfirmationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-ink/40 backdrop-blur-xs" onClick={onCancel} />
-      
+
       {/* Modal Card */}
       <div className="relative bg-canvas border border-ink/20 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150 text-ink">
-        <h3 className="font-display text-lg font-semibold tracking-tight">
-          {title}
-        </h3>
-        <p className="mt-3 text-sm text-ink-soft leading-relaxed">
-          {message}
-        </p>
+        <h3 className="font-display text-lg font-semibold tracking-tight">{title}</h3>
+        <p className="mt-3 text-sm text-ink-soft leading-relaxed">{message}</p>
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onCancel}
@@ -378,8 +663,8 @@ function ConfirmationModal({
               variant === "danger"
                 ? "bg-destructive text-white hover:bg-destructive-90"
                 : variant === "warning"
-                ? "bg-gold text-ink hover:bg-gold-90"
-                : "bg-ink text-canvas hover:bg-ink-90"
+                  ? "bg-gold text-ink hover:bg-gold-90"
+                  : "bg-ink text-canvas hover:bg-ink-90"
             }`}
           >
             {confirmLabel}

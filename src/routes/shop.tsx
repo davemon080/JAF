@@ -17,7 +17,11 @@ export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
       { title: "Shop — JAF" },
-      { name: "description", content: "Browse the full JAF drop: heavyweight tees, hoodies and caps. Filter by category, size and price." },
+      {
+        name: "description",
+        content:
+          "Browse the full JAF drop: heavyweight tees, hoodies and caps. Filter by category, size and price.",
+      },
       { property: "og:title", content: "Shop — JAF" },
       { property: "og:description", content: "Browse the full JAF drop. Tees, hoodies, caps." },
       { property: "og:url", content: "/shop" },
@@ -146,7 +150,10 @@ function ShopPage() {
               <option value="price-desc">Price: high → low</option>
             </select>
           </div>
-          <Link to="/wishlist" className="text-xs tracking-widest uppercase underline underline-offset-4">
+          <Link
+            to="/wishlist"
+            className="text-xs tracking-widest uppercase underline underline-offset-4"
+          >
             View wishlist
           </Link>
         </aside>

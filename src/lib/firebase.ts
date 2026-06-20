@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { initializeApp } from "firebase/app";
 import {
   initializeFirestore,
@@ -15,10 +16,14 @@ import { DEFAULT_ZONES, type DeliveryZone } from "@/data/zones";
 import logoAsset from "@/assets/jaf-logo.asset.json";
 
 const app = initializeApp(firebaseConfig);
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false,
-}, firebaseConfig.firestoreDatabaseId || "(default)");
+export const db = initializeFirestore(
+  app,
+  {
+    experimentalForceLongPolling: true,
+    useFetchStreams: false,
+  },
+  firebaseConfig.firestoreDatabaseId || "(default)",
+);
 
 export interface CustomUser {
   uid: string;
@@ -116,7 +121,11 @@ export enum OperationType {
   WRITE = "write",
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null,
+) {
   const errInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -207,7 +216,11 @@ export async function fetchCouponsFromFirestore() {
   }
 }
 
-export async function saveCouponToFirestore(coupon: { code: string; percent: number; expiry: string }) {
+export async function saveCouponToFirestore(coupon: {
+  code: string;
+  percent: number;
+  expiry: string;
+}) {
   try {
     await setDoc(doc(db, "coupons", coupon.code.toUpperCase()), cleanUndefined(coupon));
   } catch (error) {
@@ -254,7 +267,10 @@ export async function deleteOrderFromFirestore(ref: string): Promise<void> {
   }
 }
 
-export async function fetchBrandingFromFirestore(): Promise<{ logoUrl: string; logoShape: "circle" | "square" } | null> {
+export async function fetchBrandingFromFirestore(): Promise<{
+  logoUrl: string;
+  logoShape: "circle" | "square";
+} | null> {
   try {
     const docSnap = await getDoc(doc(db, "settings", "branding"));
     if (docSnap.exists()) {
@@ -267,7 +283,10 @@ export async function fetchBrandingFromFirestore(): Promise<{ logoUrl: string; l
   }
 }
 
-export async function saveBrandingToFirestore(branding: { logoUrl: string; logoShape: "circle" | "square" }): Promise<void> {
+export async function saveBrandingToFirestore(branding: {
+  logoUrl: string;
+  logoShape: "circle" | "square";
+}): Promise<void> {
   try {
     await setDoc(doc(db, "settings", "branding"), cleanUndefined(branding));
   } catch (error) {
@@ -275,14 +294,22 @@ export async function saveBrandingToFirestore(branding: { logoUrl: string; logoS
   }
 }
 
-export async function recordUserInFirestore(uid: string, email: string, fullName?: string): Promise<void> {
+export async function recordUserInFirestore(
+  uid: string,
+  email: string,
+  fullName?: string,
+): Promise<void> {
   try {
     const emailKey = email.toLowerCase().trim();
     if (!emailKey) return;
     const docRef = doc(db, "users", emailKey);
-    await setDoc(docRef, {
-      lastLoginAt: new Date().toISOString()
-    }, { merge: true });
+    await setDoc(
+      docRef,
+      {
+        lastLoginAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
   } catch (err) {
     console.error("Error recording user:", err);
   }
@@ -292,13 +319,13 @@ export async function customSignUp(email: string, password: string, fullName: st
   try {
     const emailKey = email.toLowerCase().trim();
     if (!emailKey) throw new Error("Email is required.");
-    
+
     const docRef = doc(db, "users", emailKey);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       throw new Error("An account with this email already exists.");
     }
-    
+
     const uid = "u_" + Math.random().toString(36).substr(2, 9);
     const newUser = {
       uid,
@@ -307,9 +334,9 @@ export async function customSignUp(email: string, password: string, fullName: st
       password, // store user's password as requested in the table
       role: "user",
       createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString()
+      lastLoginAt: new Date().toISOString(),
     };
-    
+
     await setDoc(docRef, newUser);
     auth.setCurrentUser({ uid, email: emailKey, displayName: fullName, role: "user" });
     return newUser;
@@ -323,30 +350,34 @@ export async function customSignIn(email: string, password: string) {
   try {
     const emailKey = email.toLowerCase().trim();
     if (!emailKey) throw new Error("Email is required.");
-    
+
     const docRef = doc(db, "users", emailKey);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) {
       throw new Error("No account found with this email. Please register first.");
     }
-    
+
     const userData = docSnap.data();
     if (userData.password !== password) {
       throw new Error("Incorrect password. Please try again.");
     }
-    
+
     // Update lastLoginAt
-    await setDoc(docRef, {
-      lastLoginAt: new Date().toISOString()
-    }, { merge: true });
-    
+    await setDoc(
+      docRef,
+      {
+        lastLoginAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
     const verifiedUser = {
       uid: userData.uid,
       email: userData.email,
       displayName: userData.fullName || "",
-      role: userData.role || "user"
+      role: userData.role || "user",
     };
-    
+
     auth.setCurrentUser(verifiedUser);
     return verifiedUser;
   } catch (error) {
@@ -357,6 +388,49 @@ export async function customSignIn(email: string, password: string) {
 
 export async function customSignOut() {
   auth.signOut();
+}
+
+export interface UserDeliveryDetails {
+  zoneId: "abuja" | "lafia";
+  address: string;
+  notes?: string;
+  phone?: string;
+  fullName?: string;
+}
+
+export async function getUserDeliveryDetails(email: string): Promise<UserDeliveryDetails | null> {
+  try {
+    const emailKey = email.toLowerCase().trim();
+    if (!emailKey) return null;
+    const docSnap = await getDoc(doc(db, "users", emailKey));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return (data.deliveryDetails as UserDeliveryDetails) || null;
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `users/${email}`);
+    return null;
+  }
+}
+
+export async function saveUserDeliveryDetails(
+  email: string,
+  details: UserDeliveryDetails,
+): Promise<void> {
+  try {
+    const emailKey = email.toLowerCase().trim();
+    if (!emailKey) return;
+    await setDoc(
+      doc(db, "users", emailKey),
+      {
+        deliveryDetails: cleanUndefined(details),
+      },
+      { merge: true },
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `users/${email}`);
+  }
 }
 
 // ------ Auto-Seeding ------
@@ -394,17 +468,24 @@ export async function seedFirebaseIfEmpty() {
     const brandingSnap = await getDoc(doc(db, "settings", "branding"));
     if (!brandingSnap.exists()) {
       console.log("Seeding default branding settings to Firestore...");
-      await setDoc(doc(db, "settings", "branding"), cleanUndefined({
-        logoUrl: logoAsset.url,
-        logoShape: "square",
-      }));
+      await setDoc(
+        doc(db, "settings", "branding"),
+        cleanUndefined({
+          logoUrl: logoAsset.url,
+          logoShape: "square",
+        }),
+      );
     } else {
       const data = brandingSnap.data();
       if (data && (data.logoUrl?.includes("/__l5e") || data.logoUrl?.includes("jaf-logo.jpg"))) {
         console.log("Updating outdated placeholder logo URL in Firestore...");
-        await setDoc(doc(db, "settings", "branding"), {
-          logoUrl: logoAsset.url,
-        }, { merge: true });
+        await setDoc(
+          doc(db, "settings", "branding"),
+          {
+            logoUrl: logoAsset.url,
+          },
+          { merge: true },
+        );
       }
     }
 
@@ -428,14 +509,18 @@ export async function seedFirebaseIfEmpty() {
         password: "eroll@12",
         role: "admin",
         createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
+        lastLoginAt: new Date().toISOString(),
       });
     } else {
       // In case password needs to be kept in sync or updated
-      await setDoc(adminUserRef, {
-        role: "admin",
-        password: "eroll@12"
-      }, { merge: true });
+      await setDoc(
+        adminUserRef,
+        {
+          role: "admin",
+          password: "eroll@12",
+        },
+        { merge: true },
+      );
     }
   } catch (error) {
     console.error("Failed to seed Firebase database:", error);
@@ -459,10 +544,58 @@ export async function updateAdminCredentials(email: string, password: string) {
   try {
     await setDoc(doc(db, "admin", "credentials"), {
       email: email.trim(),
-      password: password
+      password: password,
     });
   } catch (err) {
     console.error("Error updating admin credentials in Firestore:", err);
     throw err;
+  }
+}
+
+export async function submitContactMessage(contact: {
+  name: string;
+  email: string;
+  message: string;
+}): Promise<void> {
+  try {
+    const docRef = doc(collection(db, "messages"));
+    const id = docRef.id;
+    await setDoc(
+      docRef,
+      cleanUndefined({
+        id,
+        name: contact.name.trim(),
+        email: contact.email.toLowerCase().trim(),
+        message: contact.message.trim(),
+        createdAt: new Date().toISOString(),
+      }),
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, "messages");
+  }
+}
+
+export async function fetchContactMessages(): Promise<any[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, "messages"));
+    const messages: any[] = [];
+    querySnapshot.forEach((docSnap) => {
+      messages.push(docSnap.data());
+    });
+    // Sort messages by createdAt descending
+    return messages.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, "messages");
+    return [];
+  }
+}
+
+export async function deleteContactMessageFromFirestore(id: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, "messages", id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `messages/${id}`);
   }
 }

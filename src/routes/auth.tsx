@@ -11,7 +11,11 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — JAF" },
-      { name: "description", content: "Sign in or create a JAF account. Track orders, save your wishlist, and shop the drop." },
+      {
+        name: "description",
+        content:
+          "Sign in or create a JAF account. Track orders, save your wishlist, and shop the drop.",
+      },
       { property: "og:title", content: "Sign in — JAF" },
       { property: "og:description", content: "Just A Friend. Know your status." },
     ],
@@ -84,7 +88,9 @@ function AuthPage() {
         toast.success("Account created. You're in.");
         navigate({ to: "/" });
       } else {
-        toast.success("Password reset simulated successfully. (Custom local authentication system)");
+        toast.success(
+          "Password reset simulated successfully. (Custom local authentication system)",
+        );
         setMode("signin");
       }
     } catch (err) {
@@ -106,7 +112,11 @@ function AuthPage() {
               JUST · A · FRIEND
             </p>
             <h1 className="mt-4 font-display font-semibold tracking-tighter text-4xl md:text-5xl">
-              {mode === "signin" ? "Welcome back" : mode === "signup" ? "Join the drop" : "Reset password"}
+              {mode === "signin"
+                ? "Welcome back"
+                : mode === "signup"
+                  ? "Join the drop"
+                  : "Reset password"}
             </h1>
             <p className="mt-3 text-sm text-canvas/60 max-w-xs">
               {mode === "signin"
@@ -189,12 +199,18 @@ function AuthPage() {
               <>
                 <p>
                   New here?{" "}
-                  <button onClick={() => setMode("signup")} className="text-gold hover:underline font-medium">
+                  <button
+                    onClick={() => setMode("signup")}
+                    className="text-gold hover:underline font-medium"
+                  >
                     Create an account
                   </button>
                 </p>
                 <p>
-                  <button onClick={() => setMode("reset")} className="text-canvas/70 hover:text-gold">
+                  <button
+                    onClick={() => setMode("reset")}
+                    className="text-canvas/70 hover:text-gold"
+                  >
                     Forgot password?
                   </button>
                 </p>
@@ -203,14 +219,20 @@ function AuthPage() {
             {mode === "signup" && (
               <p>
                 Already have an account?{" "}
-                <button onClick={() => setMode("signin")} className="text-gold hover:underline font-medium">
+                <button
+                  onClick={() => setMode("signin")}
+                  className="text-gold hover:underline font-medium"
+                >
                   Sign in
                 </button>
               </p>
             )}
             {mode === "reset" && (
               <p>
-                <button onClick={() => setMode("signin")} className="text-gold hover:underline font-medium">
+                <button
+                  onClick={() => setMode("signin")}
+                  className="text-gold hover:underline font-medium"
+                >
                   Back to sign in
                 </button>
               </p>
@@ -218,7 +240,10 @@ function AuthPage() {
           </div>
 
           <div className="mt-12 text-center">
-            <Link to="/" className="text-[10px] tracking-widest uppercase text-canvas/40 hover:text-gold">
+            <Link
+              to="/"
+              className="text-[10px] tracking-widest uppercase text-canvas/40 hover:text-gold"
+            >
               ← Back to JAF
             </Link>
           </div>
@@ -246,7 +271,9 @@ function AuthPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[10px] tracking-widest uppercase font-medium text-canvas/70 block mb-2">{label}</span>
+      <span className="text-[10px] tracking-widest uppercase font-medium text-canvas/70 block mb-2">
+        {label}
+      </span>
       {children}
     </label>
   );

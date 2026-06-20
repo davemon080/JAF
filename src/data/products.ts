@@ -53,10 +53,20 @@ export const SEED_PRODUCTS: Product[] = [
     stock: 24,
     tag: "new-drop",
     description:
-      "260gsm boxy fit tee. Drop shoulder, ribbed crew, garment-washed for a broken-in hand. Printed front: \"JUST A FRIEND.\"",
+      '260gsm boxy fit tee. Drop shoulder, ribbed crew, garment-washed for a broken-in hand. Printed front: "JUST A FRIEND."',
     reviews: [
-      { name: "Tunde A.", rating: 5, body: "Fit is unreal. Arrived Abuja in two days.", date: "2025-04-02" },
-      { name: "Zara M.", rating: 4, body: "Heavy but breathable. Wear it everywhere.", date: "2025-04-18" },
+      {
+        name: "Tunde A.",
+        rating: 5,
+        body: "Fit is unreal. Arrived Abuja in two days.",
+        date: "2025-04-02",
+      },
+      {
+        name: "Zara M.",
+        rating: 4,
+        body: "Heavy but breathable. Wear it everywhere.",
+        date: "2025-04-18",
+      },
     ],
   },
   {
@@ -72,9 +82,7 @@ export const SEED_PRODUCTS: Product[] = [
     stock: 31,
     tag: "best-seller",
     description: "The cream colorway. Same 260gsm cut, pigment-washed for that lived-in look.",
-    reviews: [
-      { name: "Ifeanyi O.", rating: 5, body: "Cleanest fit I own.", date: "2025-03-22" },
-    ],
+    reviews: [{ name: "Ifeanyi O.", rating: 5, body: "Cleanest fit I own.", date: "2025-03-22" }],
   },
   {
     id: "p3",
@@ -90,7 +98,12 @@ export const SEED_PRODUCTS: Product[] = [
     tag: "limited",
     description: "Boxy long sleeve in pigment-dyed charcoal. Extended hem, ribbed cuffs.",
     reviews: [
-      { name: "Adaeze K.", rating: 5, body: "Heavyweight, drapes beautifully.", date: "2025-05-01" },
+      {
+        name: "Adaeze K.",
+        rating: 5,
+        body: "Heavyweight, drapes beautifully.",
+        date: "2025-05-01",
+      },
     ],
   },
   {
@@ -105,9 +118,7 @@ export const SEED_PRODUCTS: Product[] = [
     colors: ["Jet Black"],
     stock: 18,
     description: "Back graphic prints the message you sent and they ignored.",
-    reviews: [
-      { name: "Kemi A.", rating: 4, body: "Funny, well made.", date: "2025-04-12" },
-    ],
+    reviews: [{ name: "Kemi A.", rating: 4, body: "Funny, well made.", date: "2025-04-12" }],
   },
   {
     id: "p5",
@@ -121,10 +132,16 @@ export const SEED_PRODUCTS: Product[] = [
     colors: ["Jet Black", "Off-White"],
     stock: 14,
     tag: "best-seller",
-    description: "Heavyweight 450gsm french terry. Cropped boxy fit, double-lined hood, kangaroo pocket.",
+    description:
+      "Heavyweight 450gsm french terry. Cropped boxy fit, double-lined hood, kangaroo pocket.",
     reviews: [
       { name: "Femi D.", rating: 5, body: "Worth every kobo. Heavy hoodie.", date: "2025-03-18" },
-      { name: "Nene U.", rating: 5, body: "Bought black and cream. Wearing both daily.", date: "2025-04-25" },
+      {
+        name: "Nene U.",
+        rating: 5,
+        body: "Bought black and cream. Wearing both daily.",
+        date: "2025-04-25",
+      },
     ],
   },
   {
@@ -139,10 +156,9 @@ export const SEED_PRODUCTS: Product[] = [
     colors: ["Off-White"],
     stock: 9,
     tag: "limited",
-    description: "Back embroidery in tonal cream. The ones you keep getting introduced as a brother in.",
-    reviews: [
-      { name: "Bola O.", rating: 5, body: "Embroidery is clean.", date: "2025-04-30" },
-    ],
+    description:
+      "Back embroidery in tonal cream. The ones you keep getting introduced as a brother in.",
+    reviews: [{ name: "Bola O.", rating: 5, body: "Embroidery is clean.", date: "2025-04-30" }],
   },
   {
     id: "p7",
@@ -157,9 +173,7 @@ export const SEED_PRODUCTS: Product[] = [
     stock: 7,
     tag: "new-drop",
     description: "Full-zip, washed for a vintage hand. YKK hardware, ribbed cuffs and hem.",
-    reviews: [
-      { name: "Chidi V.", rating: 5, body: "Quality is insane.", date: "2025-05-04" },
-    ],
+    reviews: [{ name: "Chidi V.", rating: 5, body: "Quality is insane.", date: "2025-05-04" }],
   },
   {
     id: "p8",
@@ -190,7 +204,12 @@ export const SEED_PRODUCTS: Product[] = [
     tag: "new-drop",
     description: "Snap-back trucker, mesh ventilation, distressed brim, white tonal embroidery.",
     reviews: [
-      { name: "Sade R.", rating: 5, body: "Fits perfect, looks better in person.", date: "2025-05-11" },
+      {
+        name: "Sade R.",
+        rating: 5,
+        body: "Fits perfect, looks better in person.",
+        date: "2025-05-11",
+      },
     ],
   },
   {
@@ -205,9 +224,7 @@ export const SEED_PRODUCTS: Product[] = [
     colors: ["Jet Black"],
     stock: 30,
     description: "Low-profile dad hat. Curved brim, adjustable strap, tonal embroidery.",
-    reviews: [
-      { name: "Mide T.", rating: 4, body: "Clean cap. Lightweight.", date: "2025-04-08" },
-    ],
+    reviews: [{ name: "Mide T.", rating: 4, body: "Clean cap. Lightweight.", date: "2025-04-08" }],
   },
   {
     id: "p11",
@@ -235,9 +252,7 @@ export const SEED_PRODUCTS: Product[] = [
     colors: ["Off-White"],
     stock: 19,
     description: "Slim ribbed long sleeve. Goes under everything.",
-    reviews: [
-      { name: "Ronke A.", rating: 5, body: "Perfect base layer.", date: "2025-04-22" },
-    ],
+    reviews: [{ name: "Ronke A.", rating: 5, body: "Perfect base layer.", date: "2025-04-22" }],
   },
   {
     id: "p13",
@@ -254,9 +269,24 @@ export const SEED_PRODUCTS: Product[] = [
     description:
       "The Up & Down: heavyweight white cotton tee with a bold blue JAF monogram, paired with matching royal blue joggers. Trademark JAF mark on both pieces.",
     reviews: [
-      { name: "Halima B.", rating: 5, body: "Set fits like a glove. The blue is loud in the best way.", date: "2026-05-22" },
-      { name: "Tobi E.", rating: 5, body: "Got compliments all day in Abuja. Quality is real.", date: "2026-05-28" },
-      { name: "Yusuf A.", rating: 4, body: "Wish it came in more colors. Bringing the gold one next.", date: "2026-06-01" },
+      {
+        name: "Halima B.",
+        rating: 5,
+        body: "Set fits like a glove. The blue is loud in the best way.",
+        date: "2026-05-22",
+      },
+      {
+        name: "Tobi E.",
+        rating: 5,
+        body: "Got compliments all day in Abuja. Quality is real.",
+        date: "2026-05-28",
+      },
+      {
+        name: "Yusuf A.",
+        rating: 4,
+        body: "Wish it came in more colors. Bringing the gold one next.",
+        date: "2026-06-01",
+      },
     ],
   },
   {
@@ -274,10 +304,30 @@ export const SEED_PRODUCTS: Product[] = [
     description:
       "Crisp white long sleeve with the trademark JAF mark on chest and a bold JUST A FRIEND banner across the back. 260gsm cotton, drop shoulder.",
     reviews: [
-      { name: "Chioma N.", rating: 5, body: "The back print is everything. People stop me.", date: "2026-05-19" },
-      { name: "Daniel I.", rating: 5, body: "Heavyweight as promised. Worth it.", date: "2026-05-25" },
-      { name: "Aisha L.", rating: 4, body: "Runs slightly boxy — get true size.", date: "2026-06-03" },
-      { name: "Mark B.", rating: 5, body: "JAF the friend zone with a body count. Iconic.", date: "2026-06-08" },
+      {
+        name: "Chioma N.",
+        rating: 5,
+        body: "The back print is everything. People stop me.",
+        date: "2026-05-19",
+      },
+      {
+        name: "Daniel I.",
+        rating: 5,
+        body: "Heavyweight as promised. Worth it.",
+        date: "2026-05-25",
+      },
+      {
+        name: "Aisha L.",
+        rating: 4,
+        body: "Runs slightly boxy — get true size.",
+        date: "2026-06-03",
+      },
+      {
+        name: "Mark B.",
+        rating: 5,
+        body: "JAF the friend zone with a body count. Iconic.",
+        date: "2026-06-08",
+      },
     ],
   },
   {
@@ -295,9 +345,19 @@ export const SEED_PRODUCTS: Product[] = [
     description:
       "Ribbed white cotton tank with the trademark JAF mark centered on chest. Made-to-order. Layer it or wear it solo.",
     reviews: [
-      { name: "Zee O.", rating: 5, body: "Perfect under everything. Ribbing is premium.", date: "2026-05-30" },
+      {
+        name: "Zee O.",
+        rating: 5,
+        body: "Perfect under everything. Ribbing is premium.",
+        date: "2026-05-30",
+      },
       { name: "Rita F.", rating: 4, body: "Clean cut. Gym-ready.", date: "2026-06-02" },
-      { name: "Sam K.", rating: 5, body: "Said every liar with a second phone — bought 3.", date: "2026-06-10" },
+      {
+        name: "Sam K.",
+        rating: 5,
+        body: "Said every liar with a second phone — bought 3.",
+        date: "2026-06-10",
+      },
     ],
   },
   {
@@ -315,10 +375,30 @@ export const SEED_PRODUCTS: Product[] = [
     description:
       "Heavyweight 450gsm black french terry hoodie with a foiled gold JAF monogram on the chest. The signature JAF black/gold colorway.",
     reviews: [
-      { name: "Ifeoma J.", rating: 5, body: "The gold print catches light. Looks luxury in person.", date: "2026-05-15" },
-      { name: "Bola R.", rating: 5, body: "My new favorite hoodie. Heavy and soft.", date: "2026-05-21" },
-      { name: "Kunle D.", rating: 4, body: "Limited drop — glad I copped early.", date: "2026-05-27" },
-      { name: "Nana O.", rating: 5, body: "Black and gold is THE JAF colorway. Loud.", date: "2026-06-05" },
+      {
+        name: "Ifeoma J.",
+        rating: 5,
+        body: "The gold print catches light. Looks luxury in person.",
+        date: "2026-05-15",
+      },
+      {
+        name: "Bola R.",
+        rating: 5,
+        body: "My new favorite hoodie. Heavy and soft.",
+        date: "2026-05-21",
+      },
+      {
+        name: "Kunle D.",
+        rating: 4,
+        body: "Limited drop — glad I copped early.",
+        date: "2026-05-27",
+      },
+      {
+        name: "Nana O.",
+        rating: 5,
+        body: "Black and gold is THE JAF colorway. Loud.",
+        date: "2026-06-05",
+      },
     ],
   },
 ];

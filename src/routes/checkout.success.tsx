@@ -34,20 +34,38 @@ function SuccessPage() {
       <p className="font-display text-3xl tracking-widest mb-8">{ref}</p>
       {order && (
         <div className="border border-ink/10 p-6 text-left mb-8 space-y-2 text-sm">
-          <p><span className="text-ink-soft">Delivering to:</span> {order.delivery.zoneLabel}</p>
-          <p><span className="text-ink-soft">Address:</span> {order.delivery.address}</p>
-          <p><span className="text-ink-soft">Total:</span> {formatNaira(order.total)}</p>
+          <p>
+            <span className="text-ink-soft">Delivering to:</span> {order.delivery.zoneLabel}
+          </p>
+          <p>
+            <span className="text-ink-soft">Address:</span> {order.delivery.address}
+          </p>
+          <p>
+            <span className="text-ink-soft">Total:</span> {formatNaira(order.total)}
+          </p>
         </div>
       )}
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <a href={wa} target="_blank" rel="noopener noreferrer" className="bg-ink text-canvas px-6 py-3 text-xs font-medium tracking-widest uppercase">
+        <a
+          href={wa}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-ink text-canvas px-6 py-3 text-xs font-medium tracking-widest uppercase"
+        >
           Confirm on WhatsApp
         </a>
-        <Link to="/track" search={{ ref }} className="border border-ink px-6 py-3 text-xs font-medium tracking-widest uppercase">
+        <Link
+          to="/track"
+          search={{ ref }}
+          className="border border-ink px-6 py-3 text-xs font-medium tracking-widest uppercase"
+        >
           Track order
         </Link>
       </div>
-      <Link to="/shop" className="block mt-8 text-[10px] tracking-widest uppercase text-ink-soft underline underline-offset-4">
+      <Link
+        to="/shop"
+        className="block mt-8 text-[10px] tracking-widest uppercase text-ink-soft underline underline-offset-4"
+      >
         Keep shopping
       </Link>
     </div>

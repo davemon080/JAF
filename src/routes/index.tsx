@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCatalog } from "@/lib/store";
 import { ProductCard } from "@/components/product-card";
-import heroModel from "@/assets/hero-model.jpg";
 import catTees from "@/assets/cat-tees.jpg";
 import catHoodies from "@/assets/cat-hoodies.jpg";
 import catCaps from "@/assets/cat-caps.jpg";
@@ -11,9 +10,16 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "JAF — Just A Friend. Rock JAF. Know your status." },
-      { name: "description", content: "JAF streetwear: heavyweight tees, hoodies and caps for the situationship era. Same-week delivery to Abuja & Lafia." },
+      {
+        name: "description",
+        content:
+          "JAF streetwear: heavyweight tees, hoodies and caps for the situationship era. Same-week delivery to Abuja & Lafia.",
+      },
       { property: "og:title", content: "JAF — Just A Friend" },
-      { property: "og:description", content: "Rock JAF. Know your status. Streetwear shipping across Abuja & Lafia." },
+      {
+        property: "og:description",
+        content: "Rock JAF. Know your status. Streetwear shipping across Abuja & Lafia.",
+      },
       { property: "og:url", content: "/" },
     ],
     links: [{ rel: "canonical", href: "/" }],
@@ -37,11 +43,13 @@ function HomePage() {
                 Drop 002 / Live now
               </p>
               <h1 className="font-display font-semibold tracking-tighter leading-[0.85] text-balance text-6xl sm:text-7xl md:text-8xl lg:text-[10vw]">
-                JUST A<br />FRIEND.
+                JUST A<br />
+                FRIEND.
               </h1>
               <div className="mt-8 flex flex-col sm:flex-row sm:items-end justify-between gap-6 max-w-2xl">
                 <p className="text-base md:text-lg text-pretty leading-relaxed max-w-[40ch] text-ink-soft">
-                  Rock JAF. Know your status. An ironic collection for the situationship era, engineered for the streets of Abuja and beyond.
+                  Rock JAF. Know your status. An ironic collection for the situationship era,
+                  engineered for the streets of Abuja and beyond.
                 </p>
                 <Link
                   to="/shop"
@@ -54,7 +62,7 @@ function HomePage() {
             </div>
             <div className="relative aspect-[3/4] lg:aspect-[3/5] overflow-hidden">
               <img
-                src={heroModel}
+                src="https://iili.io/CzELsTl.jpg"
                 alt="JAF model in heavyweight black hoodie"
                 width={1080}
                 height={1920}
@@ -159,7 +167,9 @@ function HomePage() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent" />
               <div className="absolute bottom-6 left-6 text-canvas">
-                <h4 className="text-2xl md:text-3xl font-display font-semibold tracking-tighter">{c.label}</h4>
+                <h4 className="text-2xl md:text-3xl font-display font-semibold tracking-tighter">
+                  {c.label}
+                </h4>
                 <p className="text-xs uppercase tracking-widest opacity-80">Shop {c.num}</p>
               </div>
             </Link>
@@ -171,15 +181,21 @@ function HomePage() {
       <section className="border-t border-ink/10 py-12 px-6">
         <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8 text-sm">
           <div>
-            <p className="text-[10px] font-medium tracking-widest uppercase text-ink-soft mb-2">01 — Express</p>
+            <p className="text-[10px] font-medium tracking-widest uppercase text-ink-soft mb-2">
+              01 — Express
+            </p>
             <p className="font-medium">Lafia & Abuja same-week delivery.</p>
           </div>
           <div>
-            <p className="text-[10px] font-medium tracking-widest uppercase text-ink-soft mb-2">02 — Pay your way</p>
+            <p className="text-[10px] font-medium tracking-widest uppercase text-ink-soft mb-2">
+              02 — Pay your way
+            </p>
             <p className="font-medium">Card, Bank Transfer, USSD via Paystack.</p>
           </div>
           <div>
-            <p className="text-[10px] font-medium tracking-widest uppercase text-ink-soft mb-2">03 — On WhatsApp</p>
+            <p className="text-[10px] font-medium tracking-widest uppercase text-ink-soft mb-2">
+              03 — On WhatsApp
+            </p>
             <p className="font-medium">Order updates straight to your chat.</p>
           </div>
         </div>

@@ -1,16 +1,20 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart, useCatalog, useWishlist } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
 import { Heart, Minus, Plus, Star } from "lucide-react";
 import { toast } from "sonner";
 import { ProductCard } from "@/components/product-card";
+import { auth } from "@/lib/firebase";
 
 export const Route = createFileRoute("/product/$slug")({
   head: ({ params }) => ({
     meta: [
       { title: `${params.slug.replace(/-/g, " ").toUpperCase()} — JAF` },
-      { name: "description", content: `Shop the ${params.slug.replace(/-/g, " ")} from JAF. Heavyweight construction, shipping across Abuja & Lafia.` },
+      {
+        name: "description",
+        content: `Shop the ${params.slug.replace(/-/g, " ")} from JAF. Heavyweight construction, shipping across Abuja & Lafia.`,
+      },
       { property: "og:title", content: `${params.slug.replace(/-/g, " ").toUpperCase()} — JAF` },
       { property: "og:url", content: `/product/${params.slug}` },
     ],
@@ -34,8 +38,65 @@ function ProductPage() {
   const [qty, setQty] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
 
+  const [reviewForm, setReviewForm] = useState({
+    name: auth.currentUser?.displayName || auth.currentUser?.email?.split("@")[0] || "",
+    rating: 5,
+    body: "",
+  });
+  const upsert = useCatalog((s) => s.upsert);
+
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      if (u) {
+        setReviewForm((prev) => ({
+          ...prev,
+          name: prev.name || u.displayName || u.email?.split("@")[0] || "",
+        }));
+      }
+    });
+    return unsub;
+  }, []);
+
+  const handleReviewSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewForm.name.trim()) {
+      toast.error("Please enter your name.");
+      return;
+    }
+    if (!reviewForm.body.trim()) {
+      toast.error("Please write some feedback.");
+      return;
+    }
+    const newRating = Number(reviewForm.rating);
+    if (isNaN(newRating) || newRating < 1 || newRating > 5) {
+      toast.error("Please supply a valid rating between 1 and 5.");
+      return;
+    }
+
+    const newRev = {
+      name: reviewForm.name.trim(),
+      rating: newRating,
+      body: reviewForm.body.trim(),
+      date: new Date().toISOString().split("T")[0],
+    };
+
+    upsert({
+      ...product,
+      reviews: [newRev, ...(product.reviews || [])],
+    });
+
+    toast.success("Thank you! Your review has been submitted.");
+    setReviewForm({
+      name: auth.currentUser?.displayName || auth.currentUser?.email?.split("@")[0] || "",
+      rating: 5,
+      body: "",
+    });
+  };
+
   const inStock = product.stock > 0;
-  const related = products.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 3);
+  const related = products
+    .filter((p) => p.category === product.category && p.id !== product.id)
+    .slice(0, 3);
   const avgRating =
     product.reviews.length > 0
       ? product.reviews.reduce((a, r) => a + r.rating, 0) / product.reviews.length
@@ -50,8 +111,10 @@ function ProductPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-10">
       <nav className="text-[10px] tracking-widest uppercase text-ink-soft mb-8 flex gap-2">
-        <Link to="/">HOME</Link><span>/</span>
-        <Link to="/shop">SHOP</Link><span>/</span>
+        <Link to="/">HOME</Link>
+        <span>/</span>
+        <Link to="/shop">SHOP</Link>
+        <span>/</span>
         <span className="text-ink">{product.name}</span>
       </nav>
 
@@ -75,7 +138,15 @@ function ProductPage() {
                 onClick={() => setActiveImg(i)}
                 className={`aspect-square overflow-hidden border ${i === activeImg ? "border-ink" : "border-transparent"}`}
               >
-                <img src={src} alt="" loading="lazy" width={256} height={256} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                <img
+                  src={src}
+                  alt=""
+                  loading="lazy"
+                  width={256}
+                  height={256}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
               </button>
             ))}
           </div>
@@ -84,8 +155,12 @@ function ProductPage() {
         {/* INFO */}
         <div className="lg:sticky lg:top-20 lg:self-start space-y-6">
           <div>
-            <p className="text-[10px] tracking-widest uppercase text-ink-soft mb-2">{product.subtitle}</p>
-            <h1 className="font-display text-3xl md:text-5xl font-semibold tracking-tighter">{product.name}</h1>
+            <p className="text-[10px] tracking-widest uppercase text-ink-soft mb-2">
+              {product.subtitle}
+            </p>
+            <h1 className="font-display text-3xl md:text-5xl font-semibold tracking-tighter">
+              {product.name}
+            </h1>
             <div className="flex items-center gap-4 mt-3">
               <p className="text-xl font-medium">{formatNaira(product.price)}</p>
               {product.reviews.length > 0 && (
@@ -101,7 +176,9 @@ function ProductPage() {
 
           <div className="space-y-4">
             <div>
-              <p className="text-[10px] tracking-widest uppercase font-medium mb-2">Color — {color}</p>
+              <p className="text-[10px] tracking-widest uppercase font-medium mb-2">
+                Color — {color}
+              </p>
               <div className="flex gap-2">
                 {product.colors.map((c) => (
                   <button
@@ -133,11 +210,17 @@ function ProductPage() {
             <div>
               <p className="text-[10px] tracking-widest uppercase font-medium mb-2">Quantity</p>
               <div className="inline-flex items-center border border-ink/20">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="size-10 grid place-items-center">
+                <button
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  className="size-10 grid place-items-center"
+                >
                   <Minus className="size-3.5" />
                 </button>
                 <span className="w-10 text-center text-sm">{qty}</span>
-                <button onClick={() => setQty((q) => q + 1)} className="size-10 grid place-items-center">
+                <button
+                  onClick={() => setQty((q) => q + 1)}
+                  className="size-10 grid place-items-center"
+                >
                   <Plus className="size-3.5" />
                 </button>
               </div>
@@ -175,30 +258,108 @@ function ProductPage() {
       </div>
 
       {/* REVIEWS */}
-      <section className="mt-24">
-        <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tighter mb-8">
-          REVIEWS ({product.reviews.length})
-        </h2>
-        {product.reviews.length === 0 ? (
-          <p className="text-sm text-ink-soft">No reviews yet. Be the first to drop one.</p>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-6">
-            {product.reviews.map((r, i) => (
-              <article key={i} className="border-t border-ink/10 pt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium">{r.name}</p>
-                  <div className="flex">
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <Star key={j} className={`size-3 ${j < r.rating ? "fill-ink text-ink" : "text-ink/20"}`} />
-                    ))}
-                  </div>
-                </div>
-                <p className="text-sm text-ink-soft leading-relaxed">{r.body}</p>
-                <p className="text-[10px] tracking-widest uppercase text-ink-soft/60 mt-2">{r.date}</p>
-              </article>
-            ))}
+      <section className="mt-24 border-t border-ink/10 pt-16 animate-fade-in">
+        <div className="grid lg:grid-cols-[1.5fr_1fr] gap-12">
+          {/* REVIEWS LIST */}
+          <div>
+            <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tighter mb-8">
+              REVIEWS ({product.reviews.length})
+            </h2>
+            {product.reviews.length === 0 ? (
+              <p className="text-sm text-ink-soft">No reviews yet. Be the first to drop one.</p>
+            ) : (
+              <div className="space-y-6">
+                {product.reviews.map((r, i) => (
+                  <article key={i} className="border-b border-ink/5 pb-6 last:border-b-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium">{r.name}</p>
+                      <div className="flex">
+                        {Array.from({ length: 5 }).map((_, j) => (
+                          <Star
+                            key={j}
+                            className={`size-3 ${j < r.rating ? "fill-ink text-ink text-gold" : "text-ink/20"}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm text-ink-soft leading-relaxed">{r.body}</p>
+                    <p className="text-[10px] tracking-widest uppercase text-ink-soft/60 mt-2">
+                      {r.date}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* DROP A REVIEW FORM */}
+          <div className="bg-card border border-ink/10 p-6 space-y-6 h-fit bg-zinc-50">
+            <div>
+              <h3 className="font-display text-xl font-semibold tracking-tight uppercase">
+                Drop your review & rating
+              </h3>
+              <p className="text-xs text-ink-soft mt-1">
+                Your feedback helps us perfect our street drops.
+              </p>
+            </div>
+            <form onSubmit={handleReviewSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase text-ink-soft mb-2">
+                  Overall Rating
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      type="button"
+                      key={val}
+                      onClick={() => setReviewForm({ ...reviewForm, rating: val })}
+                      className="p-1 hover:scale-110 transition-all focus:outline-none"
+                    >
+                      <Star
+                        className={`size-6 ${val <= reviewForm.rating ? "fill-gold text-gold" : "text-ink/20"}`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase text-ink-soft mb-2">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Ifeanyi O."
+                  value={reviewForm.name}
+                  onChange={(e) => setReviewForm({ ...reviewForm, name: e.target.value })}
+                  className="w-full bg-transparent border border-ink/25 px-3 py-2 text-xs outline-none focus:border-ink placeholder-ink/30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase text-ink-soft mb-2">
+                  Your Commentary
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="Tell others how this piece fits, the heavyweight feel, or style tips..."
+                  value={reviewForm.body}
+                  onChange={(e) => setReviewForm({ ...reviewForm, body: e.target.value })}
+                  className="w-full bg-transparent border border-ink/25 px-3 py-2 text-xs outline-none focus:border-ink placeholder-ink/30"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-ink text-canvas text-[11px] font-semibold tracking-widest uppercase py-3 hover:bg-ink-soft transition-colors text-white"
+              >
+                SUBMIT REVIEW
+              </button>
+            </form>
+          </div>
+        </div>
       </section>
 
       {/* RELATED */}

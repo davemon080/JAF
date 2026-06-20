@@ -4,7 +4,11 @@ export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
       { title: "About — JAF" },
-      { name: "description", content: "JAF is a Nigerian streetwear label built for the situationship era. Designed in Lafia, shipped from Abuja." },
+      {
+        name: "description",
+        content:
+          "JAF is a Nigerian streetwear label built for the situationship era. Designed in Lafia, shipped from Abuja.",
+      },
       { property: "og:title", content: "About — JAF" },
       { property: "og:url", content: "/about" },
     ],
@@ -23,13 +27,18 @@ function AboutPage() {
 
       <div className="prose prose-neutral max-w-none space-y-6 text-base md:text-lg leading-relaxed">
         <p>
-          JAF — Just A Friend — started as a private joke between three friends in Lafia. The text "he's literally like a brother to me" showed up in too many group chats. So we printed it on a tee.
+          JAF — Just A Friend — started as a private joke between three friends in Lafia. The text
+          "he's literally like a brother to me" showed up in too many group chats. So we printed it
+          on a tee.
         </p>
         <p>
-          The drop sold out in a weekend. The next one moved across Abuja, Lagos, and Port Harcourt. We took the joke seriously: heavyweight cotton, 450gsm french terry, embroidery instead of vinyl, garment-washed for the kind of fit your situationship will eventually notice.
+          The drop sold out in a weekend. The next one moved across Abuja, Lagos, and Port Harcourt.
+          We took the joke seriously: heavyweight cotton, 450gsm french terry, embroidery instead of
+          vinyl, garment-washed for the kind of fit your situationship will eventually notice.
         </p>
         <p>
-          Designed in Lafia. Photographed in Abuja. Shipped to the rest of Nigeria. No labels, no strings — just very good clothes for the very confused.
+          Designed in Lafia. Photographed in Abuja. Shipped to the rest of Nigeria. No labels, no
+          strings — just very good clothes for the very confused.
         </p>
       </div>
 

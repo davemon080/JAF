@@ -1,29 +1,52 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useAdmin, useCart, useCatalog, useCoupons, useOrders, type Coupon, type Order } from "@/lib/store";
+import {
+  useAdmin,
+  useCart,
+  useCatalog,
+  useCoupons,
+  useOrders,
+  type Coupon,
+  type Order,
+} from "@/lib/store";
 import { type Product, SEED_PRODUCTS, CATEGORY_LABELS, type Category } from "@/data/products";
 import { formatNaira } from "@/lib/format";
 import { type DeliveryZone } from "@/data/zones";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { LogOut, Plus, Trash2, Eye, EyeOff } from "lucide-react";
-import { getAdminCredentials, updateAdminCredentials, customSignIn } from "@/lib/firebase";
+import {
+  getAdminCredentials,
+  updateAdminCredentials,
+  customSignIn,
+  fetchContactMessages,
+  deleteContactMessageFromFirestore,
+  auth,
+} from "@/lib/firebase";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
-    meta: [
-      { title: "Admin — JAF" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Admin — JAF" }, { name: "robots", content: "noindex" }],
   }),
   component: AdminShell,
 });
 
-const TABS = ["dashboard", "products", "orders", "customers", "coupons", "zones", "settings"] as const;
+const TABS = [
+  "dashboard",
+  "products",
+  "orders",
+  "customers",
+  "messages",
+  "coupons",
+  "zones",
+  "settings",
+] as const;
 type Tab = (typeof TABS)[number];
 
 function AdminShell() {
   const { authed, logout, setAuthed } = useAdmin();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -50,7 +73,10 @@ function AdminShell() {
       }
 
       const user = await customSignIn(email, password);
-      if (user && (user.email.toLowerCase().trim() === "adminjaf@gmail.com" || user.role === "admin")) {
+      if (
+        user &&
+        (user.email.toLowerCase().trim() === "adminjaf@gmail.com" || user.role === "admin")
+      ) {
         setAuthed(true);
         toast.success("Welcome back, Admin.");
       } else {
@@ -66,17 +92,16 @@ function AdminShell() {
   if (!authed) {
     return (
       <div className="min-h-screen grid place-items-center bg-ink text-canvas px-6">
-        <form
-          onSubmit={handleLogin}
-          className="w-full max-w-sm space-y-6"
-        >
+        <form onSubmit={handleLogin} className="w-full max-w-sm space-y-6">
           <div>
             <h1 className="font-display text-4xl font-semibold tracking-tighter">JAF / ADMIN</h1>
             <p className="text-canvas/60 text-sm mt-2">Operations console. Secure authorization.</p>
           </div>
           <div className="space-y-4">
             <div>
-              <label className="block text-[10px] tracking-widest uppercase text-canvas/60 mb-1">Email Address</label>
+              <label className="block text-[10px] tracking-widest uppercase text-canvas/60 mb-1">
+                Email Address
+              </label>
               <input
                 type="email"
                 value={email}
@@ -87,7 +112,9 @@ function AdminShell() {
               />
             </div>
             <div>
-              <label className="block text-[10px] tracking-widest uppercase text-canvas/60 mb-1">Password</label>
+              <label className="block text-[10px] tracking-widest uppercase text-canvas/60 mb-1">
+                Password
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -115,7 +142,10 @@ function AdminShell() {
           >
             {busy ? "Authorizing..." : "Enter"}
           </button>
-          <Link to="/" className="block text-center text-[10px] tracking-widest uppercase text-canvas/40 hover:text-canvas">
+          <Link
+            to="/"
+            className="block text-center text-[10px] tracking-widest uppercase text-canvas/40 hover:text-canvas"
+          >
             ← Back to site
           </Link>
         </form>
@@ -127,8 +157,12 @@ function AdminShell() {
     <div className="min-h-screen flex flex-col lg:flex-row bg-canvas">
       <aside className="lg:w-56 bg-ink text-canvas p-6 flex lg:flex-col gap-4 lg:gap-2 overflow-x-auto">
         <div className="lg:mb-6 shrink-0">
-          <Link to="/" className="font-display text-2xl font-semibold tracking-tighter">JAF.</Link>
-          <p className="text-[10px] tracking-widest uppercase text-canvas/40 mt-1 font-mono">Operations</p>
+          <Link to="/" className="font-display text-2xl font-semibold tracking-tighter">
+            JAF.
+          </Link>
+          <p className="text-[10px] tracking-widest uppercase text-canvas/40 mt-1 font-mono">
+            Operations
+          </p>
         </div>
         {TABS.map((t) => (
           <button
@@ -139,7 +173,15 @@ function AdminShell() {
             {t}
           </button>
         ))}
-        <button onClick={logout} className="lg:mt-auto text-xs tracking-widest uppercase px-3 py-2 hover:bg-canvas/10 flex items-center gap-2 shrink-0">
+        <button
+          onClick={() => {
+            auth.signOut();
+            logout();
+            toast.success("Logged out successfully.");
+            navigate({ to: "/auth" });
+          }}
+          className="lg:mt-auto text-xs tracking-widest uppercase px-3 py-2 hover:bg-canvas/10 flex items-center gap-2 shrink-0"
+        >
           <LogOut className="size-3.5" /> Logout
         </button>
       </aside>
@@ -148,6 +190,7 @@ function AdminShell() {
         {tab === "products" && <ProductsTab />}
         {tab === "orders" && <OrdersTab />}
         {tab === "customers" && <CustomersTab />}
+        {tab === "messages" && <MessagesTab />}
         {tab === "coupons" && <CouponsTab />}
         {tab === "zones" && <ZonesTab />}
         {tab === "settings" && <SettingsTab />}
@@ -160,6 +203,18 @@ function AdminShell() {
 function DashboardTab() {
   const orders = useOrders((s) => s.orders);
   const products = useCatalog((s) => s.products);
+  const coupons = useCoupons((s) => s.coupons);
+  const zones = useCatalog((s) => s.zones);
+
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
+
+  useEffect(() => {
+    fetchContactMessages()
+      .then((data) => setMessages(data || []))
+      .catch(() => {})
+      .finally(() => setLoadingMessages(false));
+  }, []);
 
   const revenue = orders.reduce((a, o) => a + o.total, 0);
   const today = new Date().toDateString();
@@ -170,18 +225,35 @@ function DashboardTab() {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     const key = d.toDateString();
-    const total = orders.filter((o) => new Date(o.createdAt).toDateString() === key).reduce((a, o) => a + o.total, 0);
+    const total = orders
+      .filter((o) => new Date(o.createdAt).toDateString() === key)
+      .reduce((a, o) => a + o.total, 0);
     return { day: d.toLocaleDateString("en-NG", { weekday: "short" }), total };
   });
 
   const topProducts = products
     .map((p) => ({
       p,
-      sold: orders.flatMap((o) => o.items).filter((i) => i.productId === p.id).reduce((a, i) => a + i.qty, 0),
+      sold: orders
+        .flatMap((o) => o.items)
+        .filter((i) => i.productId === p.id)
+        .reduce((a, i) => a + i.qty, 0),
     }))
     .filter((x) => x.sold > 0)
     .sort((a, b) => b.sold - a.sold)
     .slice(0, 5);
+
+  // Measure database file sizes in bytes using Blob serialization
+  const productsBytes = new Blob([JSON.stringify(products)]).size;
+  const ordersBytes = new Blob([JSON.stringify(orders)]).size;
+  const couponsBytes = new Blob([JSON.stringify(coupons)]).size;
+  const zonesBytes = new Blob([JSON.stringify(zones)]).size;
+  const messagesBytes = new Blob([JSON.stringify(messages)]).size;
+
+  const totalAllocatedBytes =
+    productsBytes + ordersBytes + couponsBytes + zonesBytes + messagesBytes;
+  const totalAllocatedKB = (totalAllocatedBytes / 1024).toFixed(2);
+  const percentStorageUsage = ((totalAllocatedBytes / (1024 * 1024 * 1024)) * 100).toFixed(5);
 
   return (
     <div className="space-y-10">
@@ -193,35 +265,159 @@ function DashboardTab() {
         <Stat label="Products" value={products.length.toString()} />
       </div>
 
-      <section className="bg-card border border-ink/10 p-6">
-        <h2 className="text-xs tracking-widest uppercase mb-6">Revenue · last 7 days</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={days}>
-              <XAxis dataKey="day" stroke="#71717a" fontSize={11} />
-              <YAxis stroke="#71717a" fontSize={11} tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: number) => formatNaira(v)} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-              <Bar dataKey="total" fill="#18181b" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+      <div className="grid lg:grid-cols-[2fr_1fr] gap-8">
+        <div className="space-y-8">
+          <section className="bg-card border border-ink/10 p-6">
+            <h2 className="text-xs tracking-widest uppercase mb-6">Revenue · last 7 days</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={days}>
+                  <XAxis dataKey="day" stroke="#71717a" fontSize={11} />
+                  <YAxis
+                    stroke="#71717a"
+                    fontSize={11}
+                    tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => formatNaira(v)}
+                    cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                  />
+                  <Bar dataKey="total" fill="#18181b" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
 
-      <section>
-        <h2 className="text-xs tracking-widest uppercase mb-4">Top sellers</h2>
-        {topProducts.length === 0 ? (
-          <p className="text-sm text-ink-soft">No sales yet. Place a test order from the site.</p>
-        ) : (
-          <ul className="divide-y divide-ink/10 border border-ink/10 bg-card">
-            {topProducts.map((x) => (
-              <li key={x.p.id} className="p-4 flex items-center justify-between text-sm">
-                <span className="font-medium">{x.p.name}</span>
-                <span className="text-ink-soft">{x.sold} sold</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          <section>
+            <h2 className="text-xs tracking-widest uppercase mb-4">Top sellers</h2>
+            {topProducts.length === 0 ? (
+              <p className="text-sm text-ink-soft">
+                No sales yet. Place a test order from the site.
+              </p>
+            ) : (
+              <ul className="divide-y divide-ink/10 border border-ink/10 bg-card">
+                {topProducts.map((x) => (
+                  <li key={x.p.id} className="p-4 flex items-center justify-between text-sm">
+                    <span className="font-medium">{x.p.name}</span>
+                    <span className="text-ink-soft">{x.sold} sold</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        {/* DATABASE STORAGE AND USAGE PANEL */}
+        <div className="space-y-6">
+          <section className="bg-card border border-ink/10 p-6 space-y-6">
+            <div>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs tracking-widest uppercase font-semibold">
+                  DB Firestore Storage
+                </h2>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 font-medium tracking-wide">
+                  ONLINE
+                </span>
+              </div>
+              <p className="text-xs text-ink-soft mt-1">
+                Real-time status & allocated usage details
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="font-medium">Total Occupied:</span>
+                <span className="font-mono text-[11px] font-bold">{totalAllocatedKB} KB</span>
+              </div>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-ink-soft">Storage Limit:</span>
+                <span className="font-mono text-ink-soft">1,048,576 KB (1 GB)</span>
+              </div>
+              <div className="w-full h-1.5 bg-zinc-100 rounded-none overflow-hidden my-1">
+                <div
+                  className="h-full bg-ink animate-pulse"
+                  style={{ width: `${Math.max(1, parseFloat(percentStorageUsage))}%` }}
+                />
+              </div>
+              <div className="flex items-baseline justify-between text-[10px] text-ink-soft font-mono">
+                <span>Usage Scale:</span>
+                <span>{percentStorageUsage}% used</span>
+              </div>
+            </div>
+
+            <div className="border-t border-ink/10 pt-4 space-y-3">
+              <p className="text-[10px] tracking-widest uppercase text-ink-soft font-medium">
+                Collection Metrics
+              </p>
+
+              <div className="divide-y divide-ink/5 text-xs">
+                <div className="py-2 flex justify-between">
+                  <span className="text-zinc-600 font-mono">/products</span>
+                  <div className="text-right">
+                    <p className="font-mono">{products.length} docs</p>
+                    <p className="text-[10px] text-zinc-400 font-mono">
+                      {(productsBytes / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                </div>
+
+                <div className="py-2 flex justify-between">
+                  <span className="text-zinc-600 font-mono">/orders</span>
+                  <div className="text-right">
+                    <p className="font-mono">{orders.length} docs</p>
+                    <p className="text-[10px] text-zinc-400 font-mono">
+                      {(ordersBytes / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                </div>
+
+                <div className="py-2 flex justify-between">
+                  <span className="text-zinc-600 font-mono">/messages</span>
+                  <div className="text-right">
+                    <p className="font-mono">
+                      {loadingMessages ? "..." : `${messages.length} docs`}
+                    </p>
+                    <p className="text-[10px] text-zinc-400 font-mono">
+                      {loadingMessages ? "..." : `${(messagesBytes / 1024).toFixed(2)} KB`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="py-2 flex justify-between">
+                  <span className="text-zinc-600 font-mono">/coupons</span>
+                  <div className="text-right">
+                    <p className="font-mono">{coupons.length} docs</p>
+                    <p className="text-[10px] text-zinc-400 font-mono">
+                      {(couponsBytes / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                </div>
+
+                <div className="py-2 flex justify-between">
+                  <span className="text-zinc-600 font-mono">/zones</span>
+                  <div className="text-right">
+                    <p className="font-mono">{zones.length} docs</p>
+                    <p className="text-[10px] text-zinc-400 font-mono">
+                      {(zonesBytes / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-50 p-3 text-[11px] text-zinc-500 border border-zinc-200">
+              <span className="font-semibold block uppercase text-[8px] tracking-wider mb-1 text-ink">
+                Quota Allocation (Free Tier)
+              </span>
+              <ul className="space-y-1 font-mono list-disc pl-3 text-[10px]">
+                <li>Firestore reads: 50,000 / day</li>
+                <li>Firestore writes: 20,000 / day</li>
+                <li>Durable cloud replicas: 3 zones</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
@@ -253,7 +449,12 @@ function ProductsTab() {
     onConfirm: () => {},
   });
 
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void, variant: "danger" | "warning" | "info" = "info") => {
+  const triggerConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    variant: "danger" | "warning" | "info" = "info",
+  ) => {
     setConfirmState({
       isOpen: true,
       title,
@@ -262,7 +463,7 @@ function ProductsTab() {
         onConfirm();
         setConfirmState((prev) => ({ ...prev, isOpen: false }));
       },
-      variant
+      variant,
     });
   };
 
@@ -295,14 +496,17 @@ function ProductsTab() {
                   reset();
                   toast.success("Products reset to seeds.");
                 },
-                "warning"
+                "warning",
               );
             }}
             className="border border-ink/20 px-4 py-2 text-xs tracking-widest uppercase"
           >
             Reset
           </button>
-          <button onClick={() => setEditing(blank())} className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase flex items-center gap-2">
+          <button
+            onClick={() => setEditing(blank())}
+            className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase flex items-center gap-2"
+          >
             <Plus className="size-3.5" /> New
           </button>
         </div>
@@ -311,14 +515,25 @@ function ProductsTab() {
       <div className="border border-ink/10 bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-[10px] tracking-widest uppercase text-ink-soft border-b border-ink/10">
-            <tr><th className="text-left p-3">Name</th><th className="text-left p-3">Category</th><th className="text-right p-3">Price</th><th className="text-right p-3">Stock</th><th></th></tr>
+            <tr>
+              <th className="text-left p-3">Name</th>
+              <th className="text-left p-3">Category</th>
+              <th className="text-right p-3">Price</th>
+              <th className="text-right p-3">Stock</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
             {products.map((p) => (
               <tr key={p.id} className="border-t border-ink/5">
                 <td className="p-3">
                   <div className="flex items-center gap-3">
-                    <img src={p.images[0]} alt="" referrerPolicy="no-referrer" className="size-10 object-cover" />
+                    <img
+                      src={p.images[0]}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="size-10 object-cover"
+                    />
                     <div>
                       <p className="font-medium">{p.name}</p>
                       <p className="text-[10px] text-ink-soft">{p.slug}</p>
@@ -329,7 +544,9 @@ function ProductsTab() {
                 <td className="p-3 text-right">{formatNaira(p.price)}</td>
                 <td className="p-3 text-right">{p.stock}</td>
                 <td className="p-3 text-right">
-                  <button onClick={() => setEditing(p)} className="text-xs underline mr-3">Edit</button>
+                  <button onClick={() => setEditing(p)} className="text-xs underline mr-3">
+                    Edit
+                  </button>
                   <button
                     onClick={() => {
                       triggerConfirm(
@@ -337,9 +554,11 @@ function ProductsTab() {
                         `Are you sure you want to delete product "${p.name}"? This action completely removes it from the database.`,
                         () => {
                           remove(p.id);
-                          toast.success(`Product "${p.name}" deleted successfully from the database.`);
+                          toast.success(
+                            `Product "${p.name}" deleted successfully from the database.`,
+                          );
                         },
-                        "danger"
+                        "danger",
                       );
                     }}
                     className="text-xs text-destructive"
@@ -358,7 +577,11 @@ function ProductsTab() {
         <ProductEditor
           product={editing}
           onClose={() => setEditing(null)}
-          onSave={(p) => { upsert(p); setEditing(null); toast.success("Product saved"); }}
+          onSave={(p) => {
+            upsert(p);
+            setEditing(null);
+            toast.success("Product saved");
+          }}
         />
       )}
 
@@ -374,7 +597,15 @@ function ProductsTab() {
   );
 }
 
-function ProductEditor({ product, onClose, onSave }: { product: Product; onClose: () => void; onSave: (p: Product) => void }) {
+function ProductEditor({
+  product,
+  onClose,
+  onSave,
+}: {
+  product: Product;
+  onClose: () => void;
+  onSave: (p: Product) => void;
+}) {
   const [p, setP] = useState(product);
   const set = <K extends keyof Product>(k: K, v: Product[K]) => setP({ ...p, [k]: v });
 
@@ -432,27 +663,57 @@ function ProductEditor({ product, onClose, onSave }: { product: Product; onClose
   };
 
   return (
-    <div className="fixed inset-0 bg-ink/50 z-50 grid place-items-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-canvas max-w-xl w-full max-h-[90vh] overflow-auto p-6 space-y-4 my-8 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-display text-2xl font-semibold tracking-tighter">{product.name ? "Edit" : "New"} product</h2>
+    <div
+      className="fixed inset-0 bg-ink/50 z-50 grid place-items-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-canvas max-w-xl w-full max-h-[90vh] overflow-auto p-6 space-y-4 my-8 animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-display text-2xl font-semibold tracking-tighter">
+          {product.name ? "Edit" : "New"} product
+        </h2>
         <Input label="Name" value={p.name} onChange={(v) => set("name", v)} />
         <Input label="Slug (URL)" value={p.slug} onChange={(v) => set("slug", v)} />
         <Input label="Subtitle" value={p.subtitle} onChange={(v) => set("subtitle", v)} />
         <div className="grid grid-cols-3 gap-3">
           <label className="block">
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">Category</span>
-            <select value={p.category} onChange={(e) => set("category", e.target.value as Category)} className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent">
-              {(Object.keys(CATEGORY_LABELS) as Category[]).map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+              Category
+            </span>
+            <select
+              value={p.category}
+              onChange={(e) => set("category", e.target.value as Category)}
+              className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent"
+            >
+              {(Object.keys(CATEGORY_LABELS) as Category[]).map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABELS[c]}
+                </option>
+              ))}
             </select>
           </label>
-          <Input label="Price (₦)" type="number" value={String(p.price)} onChange={(v) => set("price", Number(v) || 0)} />
-          <Input label="Stock" type="number" value={String(p.stock)} onChange={(v) => set("stock", Number(v) || 0)} />
+          <Input
+            label="Price (₦)"
+            type="number"
+            value={String(p.price)}
+            onChange={(v) => set("price", Number(v) || 0)}
+          />
+          <Input
+            label="Stock"
+            type="number"
+            value={String(p.stock)}
+            onChange={(v) => set("stock", Number(v) || 0)}
+          />
         </div>
 
         {/* Dynamic Image Uploaders */}
         <div className="space-y-3">
           <div>
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1">Image 1 (Primary)</span>
+            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1">
+              Image 1 (Primary)
+            </span>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -472,12 +733,19 @@ function ProductEditor({ product, onClose, onSave }: { product: Product; onClose
               </label>
             </div>
             {p.images[0] && (
-              <img src={p.images[0]} alt="Primary Preview" referrerPolicy="no-referrer" className="mt-2 size-16 object-cover border border-ink/10" />
+              <img
+                src={p.images[0]}
+                alt="Primary Preview"
+                referrerPolicy="no-referrer"
+                className="mt-2 size-16 object-cover border border-ink/10"
+              />
             )}
           </div>
 
           <div>
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1">Image 2 (Secondary, Hover)</span>
+            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1">
+              Image 2 (Secondary, Hover)
+            </span>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -497,38 +765,101 @@ function ProductEditor({ product, onClose, onSave }: { product: Product; onClose
               </label>
             </div>
             {p.images[1] && (
-              <img src={p.images[1]} alt="Secondary Preview" referrerPolicy="no-referrer" className="mt-2 size-16 object-cover border border-ink/10" />
+              <img
+                src={p.images[1]}
+                alt="Secondary Preview"
+                referrerPolicy="no-referrer"
+                className="mt-2 size-16 object-cover border border-ink/10"
+              />
             )}
           </div>
         </div>
 
-        <Input label="Sizes (comma)" value={p.sizes.join(", ")} onChange={(v) => set("sizes", v.split(",").map((s) => s.trim()).filter(Boolean))} />
-        <Input label="Colors (comma)" value={p.colors.join(", ")} onChange={(v) => set("colors", v.split(",").map((s) => s.trim()).filter(Boolean))} />
+        <Input
+          label="Sizes (comma)"
+          value={p.sizes.join(", ")}
+          onChange={(v) =>
+            set(
+              "sizes",
+              v
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+            )
+          }
+        />
+        <Input
+          label="Colors (comma)"
+          value={p.colors.join(", ")}
+          onChange={(v) =>
+            set(
+              "colors",
+              v
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+            )
+          }
+        />
         <label className="block">
-          <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">Description</span>
-          <textarea rows={3} value={p.description} onChange={(e) => set("description", e.target.value)} className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent animate-none" />
+          <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+            Description
+          </span>
+          <textarea
+            rows={3}
+            value={p.description}
+            onChange={(e) => set("description", e.target.value)}
+            className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent animate-none"
+          />
         </label>
         <div className="flex gap-2 justify-end pt-4">
-          <button onClick={onClose} className="border border-ink/20 px-4 py-2 text-xs tracking-widest uppercase">Cancel</button>
+          <button
+            onClick={onClose}
+            className="border border-ink/20 px-4 py-2 text-xs tracking-widest uppercase"
+          >
+            Cancel
+          </button>
           <button
             onClick={() => {
-              if (!p.name || !p.slug) { toast.error("Name and slug required"); return; }
+              if (!p.name || !p.slug) {
+                toast.error("Name and slug required");
+                return;
+              }
               const autoSlug = p.slug.toLowerCase().trim().replace(/\s+/g, "-");
               onSave({ ...p, slug: autoSlug });
             }}
             className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase hover:bg-gold hover:text-ink transition-colors"
-          >Save</button>
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function Input({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+function Input({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
   return (
     <label className="block">
-      <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink" />
+      <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink"
+      />
     </label>
   );
 }
@@ -541,7 +872,9 @@ function OrdersTab() {
     <div className="space-y-6">
       <h1 className="font-display text-4xl font-semibold tracking-tighter">Orders</h1>
       {orders.length === 0 ? (
-        <p className="text-sm text-ink-soft border border-dashed border-ink/20 p-10 text-center">No orders yet.</p>
+        <p className="text-sm text-ink-soft border border-dashed border-ink/20 p-10 text-center">
+          No orders yet.
+        </p>
       ) : (
         <div className="space-y-3">
           {orders.map((o) => (
@@ -585,7 +918,12 @@ function OrderRow({
     onConfirm: () => {},
   });
 
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void, variant: "danger" | "warning" | "info" = "info") => {
+  const triggerConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    variant: "danger" | "warning" | "info" = "info",
+  ) => {
     setConfirmState({
       isOpen: true,
       title,
@@ -594,7 +932,7 @@ function OrderRow({
         onConfirm();
         setConfirmState((prev) => ({ ...prev, isOpen: false }));
       },
-      variant
+      variant,
     });
   };
 
@@ -606,7 +944,7 @@ function OrderRow({
         remove(o.ref);
         toast.success("Order deleted successfully.");
       },
-      "danger"
+      "danger",
     );
   };
 
@@ -615,29 +953,54 @@ function OrderRow({
       <div>
         <div className="flex items-baseline gap-3">
           <h3 className="font-display text-lg font-semibold tracking-tighter">{o.ref}</h3>
-          <span className="text-[10px] tracking-widest uppercase text-ink-soft">{new Date(o.createdAt).toLocaleString("en-NG")}</span>
+          <span className="text-[10px] tracking-widest uppercase text-ink-soft">
+            {new Date(o.createdAt).toLocaleString("en-NG")}
+          </span>
         </div>
-        <p className="text-sm mt-1">{o.customer.name} · {o.customer.phone} · {o.delivery.zoneLabel}</p>
+        <p className="text-sm mt-1">
+          {o.customer.name} · {o.customer.phone} · {o.delivery.zoneLabel}
+        </p>
         <p className="text-xs text-ink-soft mt-1">{o.delivery.address}</p>
         <ul className="text-xs text-ink-soft mt-2 space-y-0.5">
-          {o.items.map((i, k) => <li key={k}>· {i.name} ({i.size} / {i.color}) × {i.qty}</li>)}
+          {o.items.map((i, k) => (
+            <li key={k}>
+              · {i.name} ({i.size} / {i.color}) × {i.qty}
+            </li>
+          ))}
         </ul>
       </div>
       <div className="flex flex-col gap-2 md:items-end justify-between">
         <div className="space-y-2 flex flex-col items-end">
           <p className="font-medium">{formatNaira(o.total)}</p>
-          <select value={o.status} onChange={(e) => updateStatus(o.ref, e.target.value as Order["status"])} className="border border-ink/20 px-2 py-1 text-xs bg-transparent">
+          <select
+            value={o.status}
+            onChange={(e) => updateStatus(o.ref, e.target.value as Order["status"])}
+            className="border border-ink/20 px-2 py-1 text-xs bg-transparent"
+          >
             <option value="new">New</option>
             <option value="packed">Packed</option>
             <option value="out">Out for delivery</option>
             <option value="delivered">Delivered</option>
           </select>
           <div className="flex gap-1">
-            <input value={rider} onChange={(e) => setRider(e.target.value)} placeholder="Rider" className="border border-ink/20 px-2 py-1 text-xs bg-transparent w-28" />
-            <button onClick={() => { assignRider(o.ref, rider); toast.success("Rider assigned"); }} className="text-xs underline">Save</button>
+            <input
+              value={rider}
+              onChange={(e) => setRider(e.target.value)}
+              placeholder="Rider"
+              className="border border-ink/20 px-2 py-1 text-xs bg-transparent w-28"
+            />
+            <button
+              onClick={() => {
+                assignRider(o.ref, rider);
+                toast.success("Rider assigned");
+              }}
+              className="text-xs underline"
+            >
+              Save
+            </button>
           </div>
         </div>
-        
+
         <button
           onClick={handleDelete}
           className="border border-red-500 text-red-600 hover:bg-red-50 hover:text-red-750 px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase transition-colors flex items-center gap-1 mt-2"
@@ -665,7 +1028,12 @@ function CustomersTab() {
   const map = new Map<string, { name: string; phone: string; orders: number; spent: number }>();
   orders.forEach((o) => {
     const k = o.customer.email;
-    const existing = map.get(k) ?? { name: o.customer.name, phone: o.customer.phone, orders: 0, spent: 0 };
+    const existing = map.get(k) ?? {
+      name: o.customer.name,
+      phone: o.customer.phone,
+      orders: 0,
+      spent: 0,
+    };
     existing.orders += 1;
     existing.spent += o.total;
     map.set(k, existing);
@@ -676,11 +1044,19 @@ function CustomersTab() {
     <div className="space-y-6">
       <h1 className="font-display text-4xl font-semibold tracking-tighter">Customers</h1>
       {rows.length === 0 ? (
-        <p className="text-sm text-ink-soft border border-dashed border-ink/20 p-10 text-center">No customers yet.</p>
+        <p className="text-sm text-ink-soft border border-dashed border-ink/20 p-10 text-center">
+          No customers yet.
+        </p>
       ) : (
         <table className="w-full text-sm bg-card border border-ink/10">
           <thead className="text-[10px] tracking-widest uppercase text-ink-soft border-b border-ink/10">
-            <tr><th className="text-left p-3">Name</th><th className="text-left p-3">Email</th><th className="text-left p-3">Phone</th><th className="text-right p-3">Orders</th><th className="text-right p-3">Spent</th></tr>
+            <tr>
+              <th className="text-left p-3">Name</th>
+              <th className="text-left p-3">Email</th>
+              <th className="text-left p-3">Phone</th>
+              <th className="text-right p-3">Orders</th>
+              <th className="text-right p-3">Spent</th>
+            </tr>
           </thead>
           <tbody>
             {rows.map(([email, c]) => (
@@ -717,7 +1093,12 @@ function CouponsTab() {
     onConfirm: () => {},
   });
 
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void, variant: "danger" | "warning" | "info" = "info") => {
+  const triggerConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    variant: "danger" | "warning" | "info" = "info",
+  ) => {
     setConfirmState({
       isOpen: true,
       title,
@@ -726,7 +1107,7 @@ function CouponsTab() {
         onConfirm();
         setConfirmState((prev) => ({ ...prev, isOpen: false }));
       },
-      variant
+      variant,
     });
   };
 
@@ -744,15 +1125,29 @@ function CouponsTab() {
         className="grid sm:grid-cols-4 gap-3 bg-card border border-ink/10 p-4"
       >
         <Input label="Code" value={c.code} onChange={(v) => setC({ ...c, code: v })} />
-        <Input label="% off" type="number" value={String(c.percent)} onChange={(v) => setC({ ...c, percent: Number(v) || 0 })} />
-        <Input label="Expiry" type="date" value={c.expiry} onChange={(v) => setC({ ...c, expiry: v })} />
-        <button className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase self-end">Add</button>
+        <Input
+          label="% off"
+          type="number"
+          value={String(c.percent)}
+          onChange={(v) => setC({ ...c, percent: Number(v) || 0 })}
+        />
+        <Input
+          label="Expiry"
+          type="date"
+          value={c.expiry}
+          onChange={(v) => setC({ ...c, expiry: v })}
+        />
+        <button className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase self-end">
+          Add
+        </button>
       </form>
       <ul className="divide-y divide-ink/10 border border-ink/10 bg-card">
         {coupons.map((x) => (
           <li key={x.code} className="p-4 flex items-center justify-between text-sm">
             <span className="font-medium font-display tracking-widest">{x.code}</span>
-            <span className="text-ink-soft">{x.percent}% off · until {x.expiry}</span>
+            <span className="text-ink-soft">
+              {x.percent}% off · until {x.expiry}
+            </span>
             <button
               onClick={() => {
                 triggerConfirm(
@@ -762,7 +1157,7 @@ function CouponsTab() {
                     remove(x.code);
                     toast.success(`Coupon "${x.code}" deleted successfully from the database.`);
                   },
-                  "danger"
+                  "danger",
                 );
               }}
               className="text-destructive"
@@ -797,12 +1192,33 @@ function ZonesTab() {
       <p className="text-sm text-ink-soft">Set the fee and ETA shown at checkout.</p>
       {draft.map((z, idx) => (
         <div key={z.id} className="grid sm:grid-cols-3 gap-3 bg-card border border-ink/10 p-4">
-          <Input label="Label" value={z.label} onChange={(v) => setDraft(draft.map((d, i) => i === idx ? { ...d, label: v } : d))} />
-          <Input label="Fee (₦)" type="number" value={String(z.fee)} onChange={(v) => setDraft(draft.map((d, i) => i === idx ? { ...d, fee: Number(v) || 0 } : d))} />
-          <Input label="ETA" value={z.estimate} onChange={(v) => setDraft(draft.map((d, i) => i === idx ? { ...d, estimate: v } : d))} />
+          <Input
+            label="Label"
+            value={z.label}
+            onChange={(v) => setDraft(draft.map((d, i) => (i === idx ? { ...d, label: v } : d)))}
+          />
+          <Input
+            label="Fee (₦)"
+            type="number"
+            value={String(z.fee)}
+            onChange={(v) =>
+              setDraft(draft.map((d, i) => (i === idx ? { ...d, fee: Number(v) || 0 } : d)))
+            }
+          />
+          <Input
+            label="ETA"
+            value={z.estimate}
+            onChange={(v) => setDraft(draft.map((d, i) => (i === idx ? { ...d, estimate: v } : d)))}
+          />
         </div>
       ))}
-      <button onClick={() => { setZones(draft); toast.success("Zones updated"); }} className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase">
+      <button
+        onClick={() => {
+          setZones(draft);
+          toast.success("Zones updated");
+        }}
+        className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase"
+      >
         Save
       </button>
     </div>
@@ -855,13 +1271,17 @@ function SettingsTab() {
     <div className="space-y-6 max-w-lg">
       <div>
         <h1 className="font-display text-4xl font-semibold tracking-tighter">Console Settings</h1>
-        <p className="text-sm text-ink-soft mt-1">Manage operations credentials stored securely in Firestore.</p>
+        <p className="text-sm text-ink-soft mt-1">
+          Manage operations credentials stored securely in Firestore.
+        </p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-4 bg-card border border-ink/10 p-6">
         <div>
           <label className="block">
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">Admin Email</span>
+            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+              Admin Email
+            </span>
             <input
               type="email"
               value={email}
@@ -874,7 +1294,9 @@ function SettingsTab() {
 
         <div>
           <label className="block">
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">Admin Password</span>
+            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+              Admin Password
+            </span>
             <input
               type="text"
               value={password}
@@ -919,7 +1341,7 @@ export function ConfirmationModal({
   cancelLabel = "Cancel",
   onConfirm,
   onCancel,
-  variant = "info"
+  variant = "info",
 }: ConfirmationModalProps) {
   if (!isOpen) return null;
 
@@ -927,15 +1349,11 @@ export function ConfirmationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-ink/40 backdrop-blur-xs" onClick={onCancel} />
-      
+
       {/* Modal Card */}
       <div className="relative bg-canvas border border-ink/20 w-full max-w-md p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
-        <h3 className="font-display text-lg font-semibold tracking-tight text-ink">
-          {title}
-        </h3>
-        <p className="mt-3 text-sm text-ink-soft leading-relaxed">
-          {message}
-        </p>
+        <h3 className="font-display text-lg font-semibold tracking-tight text-ink">{title}</h3>
+        <p className="mt-3 text-sm text-ink-soft leading-relaxed">{message}</p>
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onCancel}
@@ -949,8 +1367,8 @@ export function ConfirmationModal({
               variant === "danger"
                 ? "bg-destructive text-white hover:bg-destructive-90"
                 : variant === "warning"
-                ? "bg-gold text-ink hover:bg-gold-90"
-                : "bg-ink text-canvas hover:bg-ink-90"
+                  ? "bg-gold text-ink hover:bg-gold-90"
+                  : "bg-ink text-canvas hover:bg-ink-90"
             }`}
           >
             {confirmLabel}
@@ -961,3 +1379,124 @@ export function ConfirmationModal({
   );
 }
 
+function MessagesTab() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchContactMessages();
+      setMessages(data || []);
+    } catch (e) {
+      toast.error("Failed to fetch contact messages.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this message?")) return;
+    try {
+      await deleteContactMessageFromFirestore(id);
+      toast.success("Message deleted successfully.");
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } catch (e) {
+      toast.error("Failed to delete message.");
+    }
+  };
+
+  const filtered = messages.filter((m) => {
+    const s = search.toLowerCase();
+    return (
+      (m.name || "").toLowerCase().includes(s) ||
+      (m.email || "").toLowerCase().includes(s) ||
+      (m.message || "").toLowerCase().includes(s)
+    );
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-4xl font-semibold tracking-tighter">Messages</h1>
+          <p className="text-xs text-ink-soft mt-1">
+            User inquiries and contact submissions sent from the Contact page.
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <input
+            type="text"
+            placeholder="Search messages..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-transparent border border-ink/20 px-3 py-2 text-xs outline-none focus:border-ink max-w-[200px]"
+          />
+          <button
+            onClick={load}
+            className="border border-ink/20 hover:bg-ink hover:text-canvas px-4 py-2 text-xs font-semibold tracking-widest uppercase transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 border border-dashed border-ink/20">
+          <span className="text-xs font-mono text-ink-soft animate-pulse">Fetching inbox...</span>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="border border-dashed border-ink/20 p-12 text-center">
+          <p className="text-sm text-ink-soft">
+            {search
+              ? "No messages matching your search query."
+              : "No contact messages received yet."}
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filtered.map((m) => (
+            <div key={m.id} className="border border-ink/10 bg-card p-5 space-y-3 relative group">
+              <div className="flex flex-wrap justify-between items-start gap-2">
+                <div>
+                  <h3 className="font-semibold text-sm text-ink uppercase tracking-wide">
+                    {m.name}
+                  </h3>
+                  <a href={`mailto:${m.email}`} className="text-xs text-gold hover:underline">
+                    {m.email}
+                  </a>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-ink-soft font-mono">
+                  <span>
+                    {new Date(m.createdAt).toLocaleDateString("en-NG", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  <button
+                    onClick={() => handleDelete(m.id)}
+                    className="text-destructive hover:text-red-700 p-1 transition-colors"
+                    title="Delete message"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-ink/90 whitespace-pre-wrap leading-relaxed border-t border-ink/5 pt-3">
+                {m.message}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

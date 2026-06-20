@@ -37,10 +37,7 @@ export const useCart = create<CartState>()(
       add: (line) =>
         set((s) => {
           const idx = s.lines.findIndex(
-            (l) =>
-              l.productId === line.productId &&
-              l.size === line.size &&
-              l.color === line.color,
+            (l) => l.productId === line.productId && l.size === line.size && l.color === line.color,
           );
           if (idx >= 0) {
             const copy = [...s.lines];
@@ -238,13 +235,19 @@ export const useCatalog = create<CatalogState>()(
       setZonesRaw: (zones) => set({ zones }),
       setBranding: (branding) => {
         set({ branding });
-        saveBrandingToFirestore(branding).catch((err) => console.error("Firestore sync error:", err));
+        saveBrandingToFirestore(branding).catch((err) =>
+          console.error("Firestore sync error:", err),
+        );
       },
     }),
     {
       name: "jaf-catalog",
       version: 4,
-      migrate: () => ({ products: SEED_PRODUCTS, zones: DEFAULT_ZONES, branding: { logoUrl: logoAsset.url, logoShape: "square" } }),
+      migrate: () => ({
+        products: SEED_PRODUCTS,
+        zones: DEFAULT_ZONES,
+        branding: { logoUrl: logoAsset.url, logoShape: "square" },
+      }),
     },
   ),
 );

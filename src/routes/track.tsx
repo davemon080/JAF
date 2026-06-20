@@ -33,7 +33,9 @@ function TrackPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-16">
-      <h1 className="font-display text-5xl md:text-7xl font-semibold tracking-tighter mb-2">TRACK.</h1>
+      <h1 className="font-display text-5xl md:text-7xl font-semibold tracking-tighter mb-2">
+        TRACK.
+      </h1>
       <p className="text-ink-soft mb-8">Enter your order reference (e.g. JAF-XXXXX).</p>
 
       <form
@@ -49,7 +51,9 @@ function TrackPage() {
           placeholder="JAF-XXXXX"
           className="flex-1 bg-transparent border border-ink/20 px-3 py-3 text-sm outline-none focus:border-ink"
         />
-        <button className="bg-ink text-canvas px-5 py-3 text-xs font-medium tracking-widest uppercase">Track</button>
+        <button className="bg-ink text-canvas px-5 py-3 text-xs font-medium tracking-widest uppercase">
+          Track
+        </button>
       </form>
 
       {query && !order && (
@@ -69,17 +73,32 @@ function TrackPage() {
               const reached = STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf(s);
               return (
                 <li key={s} className="relative">
-                  <span className={`absolute -left-[31px] top-0.5 size-3 rounded-full ${reached ? "bg-ink" : "bg-ink/20"}`} />
-                  <p className={`text-sm font-medium ${reached ? "" : "text-ink-soft"}`}>{STATUS_LABELS[s]}</p>
+                  <span
+                    className={`absolute -left-[31px] top-0.5 size-3 rounded-full ${reached ? "bg-ink" : "bg-ink/20"}`}
+                  />
+                  <p className={`text-sm font-medium ${reached ? "" : "text-ink-soft"}`}>
+                    {STATUS_LABELS[s]}
+                  </p>
                 </li>
               );
             })}
           </ol>
           <div className="border-t border-ink/10 pt-6 text-sm space-y-1">
-            <p><span className="text-ink-soft">Delivery:</span> {order.delivery.zoneLabel} · {formatNaira(order.delivery.fee)}</p>
-            <p><span className="text-ink-soft">Items:</span> {order.items.length}</p>
-            <p><span className="text-ink-soft">Total:</span> {formatNaira(order.total)}</p>
-            {order.rider && <p><span className="text-ink-soft">Rider:</span> {order.rider}</p>}
+            <p>
+              <span className="text-ink-soft">Delivery:</span> {order.delivery.zoneLabel} ·{" "}
+              {formatNaira(order.delivery.fee)}
+            </p>
+            <p>
+              <span className="text-ink-soft">Items:</span> {order.items.length}
+            </p>
+            <p>
+              <span className="text-ink-soft">Total:</span> {formatNaira(order.total)}
+            </p>
+            {order.rider && (
+              <p>
+                <span className="text-ink-soft">Rider:</span> {order.rider}
+              </p>
+            )}
           </div>
         </div>
       )}
