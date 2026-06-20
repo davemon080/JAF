@@ -3,12 +3,9 @@ import { useCatalog } from "@/lib/store";
 import { ProductCard } from "@/components/product-card";
 import { ArrowRight } from "lucide-react";
 
-const catTees =
-  "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=800";
-const catHoodies =
-  "https://images.unsplash.com/photo-1556821840-a1031d20f69d?auto=format&fit=crop&q=80&w=800";
-const catCaps =
-  "https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&q=80&w=800";
+const catTees = "https://iili.io/CzvuCUF.jpg";
+const catHoodies = "https://iili.io/CzvuxRa.jpg";
+const catCaps = "https://iili.io/CzvaIbn.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => ({
