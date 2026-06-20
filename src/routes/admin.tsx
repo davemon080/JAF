@@ -16,7 +16,19 @@ import { formatNaira } from "@/lib/format";
 import { type DeliveryZone } from "@/data/zones";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
-import { LogOut, Plus, Trash2, Eye, EyeOff, Globe, Users, TrendingUp, Compass, Laptop, Smartphone } from "lucide-react";
+import {
+  LogOut,
+  Plus,
+  Trash2,
+  Eye,
+  EyeOff,
+  Globe,
+  Users,
+  TrendingUp,
+  Compass,
+  Laptop,
+  Smartphone,
+} from "lucide-react";
 import {
   getAdminCredentials,
   updateAdminCredentials,
@@ -1591,7 +1603,7 @@ function TrafficTab() {
 
   // Calculate statistics
   const totalViews = events.length;
-  
+
   // Unique Visitors (Sessions)
   const uniqueSessions = new Set(events.map((e) => e.sessionId));
   const uniqueVisitors = uniqueSessions.size;
@@ -1601,7 +1613,7 @@ function TrafficTab() {
 
   // Group events by YYYY-MM-DD for the chart
   const dateMap: { [key: string]: { views: number; sessions: Set<string> } } = {};
-  
+
   // Initialize last 7 days with zeros so the chart is always fully presented
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
@@ -1633,7 +1645,10 @@ function TrafficTab() {
     .sort()
     .slice(-7)
     .map((key) => {
-      const displayDate = new Date(key).toLocaleDateString("en-NG", { weekday: "short", day: "numeric" });
+      const displayDate = new Date(key).toLocaleDateString("en-NG", {
+        weekday: "short",
+        day: "numeric",
+      });
       return {
         date: displayDate,
         views: dateMap[key].views,
@@ -1680,7 +1695,9 @@ function TrafficTab() {
         const urlObj = new URL(ref);
         ref = urlObj.hostname;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Ignore URL parsing exceptions for non-standard referrers
+    }
     referrers[ref] = (referrers[ref] || 0) + 1;
   });
 
@@ -1694,7 +1711,9 @@ function TrafficTab() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-semibold tracking-tighter">Traffic Analysis</h1>
-          <p className="text-sm text-ink-soft mt-1">Real-time application visitor insights and telemetry.</p>
+          <p className="text-sm text-ink-soft mt-1">
+            Real-time application visitor insights and telemetry.
+          </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono text-zinc-500 bg-zinc-100 px-3 py-1.5 self-start md:self-auto border border-zinc-200">
           <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -1706,31 +1725,41 @@ function TrafficTab() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">Total Page Views</span>
+            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
+              Total Page Views
+            </span>
             <Eye className="size-4 text-ink-soft" />
           </div>
           <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{totalViews}</p>
         </div>
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">Unique Visitors</span>
+            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
+              Unique Visitors
+            </span>
             <Users className="size-4 text-ink-soft" />
           </div>
           <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{uniqueVisitors}</p>
         </div>
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">Views / Visitor</span>
+            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
+              Views / Visitor
+            </span>
             <TrendingUp className="size-4 text-ink-soft" />
           </div>
           <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{avgViewsPerSession}</p>
         </div>
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
-            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">Active Channels</span>
+            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
+              Active Channels
+            </span>
             <Globe className="size-4 text-ink-soft" />
           </div>
-          <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{Object.keys(referrers).length}</p>
+          <p className="text-3xl font-bold tracking-tight mt-2 font-mono">
+            {Object.keys(referrers).length}
+          </p>
         </div>
       </div>
 
@@ -1738,8 +1767,12 @@ function TrafficTab() {
         {/* Daily Traffic Chart */}
         <div className="lg:col-span-2 bg-card border border-ink/10 p-6 space-y-6">
           <div>
-            <h2 className="text-xs tracking-widest uppercase font-semibold">Daily Visits Timeline</h2>
-            <p className="text-xs text-ink-soft mt-1">Page interactions and session footprints over the last 7 days.</p>
+            <h2 className="text-xs tracking-widest uppercase font-semibold">
+              Daily Visits Timeline
+            </h2>
+            <p className="text-xs text-ink-soft mt-1">
+              Page interactions and session footprints over the last 7 days.
+            </p>
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -1748,7 +1781,11 @@ function TrafficTab() {
                 <YAxis stroke="#71717a" fontSize={11} allowDecimals={false} />
                 <Tooltip
                   cursor={{ fill: "rgba(0,0,0,0.03)" }}
-                  contentStyle={{ background: "#ffffff", border: "1px solid rgba(0, 0, 0, 0.1)", fontSize: "11px" }}
+                  contentStyle={{
+                    background: "#ffffff",
+                    border: "1px solid rgba(0, 0, 0, 0.1)",
+                    fontSize: "11px",
+                  }}
                 />
                 <Bar name="Views" dataKey="views" fill="#18181b" />
                 <Bar name="Visitors" dataKey="visitors" fill="#d4af37" />
@@ -1761,9 +1798,11 @@ function TrafficTab() {
         <div className="bg-card border border-ink/10 p-6 flex flex-col justify-between">
           <div>
             <h2 className="text-xs tracking-widest uppercase font-semibold">Devices & Platforms</h2>
-            <p className="text-xs text-ink-soft mt-1">Classification of customer endpoints by layout sizes.</p>
+            <p className="text-xs text-ink-soft mt-1">
+              Classification of customer endpoints by layout sizes.
+            </p>
           </div>
-          
+
           <div className="space-y-6 my-6 flex-1 flex flex-col justify-center">
             {Object.entries(deviceCounts).map(([device, count]) => {
               const ratio = totalViews > 0 ? (count / totalViews) * 100 : 0;
@@ -1773,15 +1812,19 @@ function TrafficTab() {
                     <span className="font-medium flex items-center gap-2">
                       {device === "Desktop" && <Laptop className="size-4 text-zinc-500" />}
                       {device === "Mobile" && <Smartphone className="size-4 text-zinc-500" />}
-                      {device === "Tablet" && <Smartphone className="size-4 rotate-90 text-zinc-500" />}
+                      {device === "Tablet" && (
+                        <Smartphone className="size-4 rotate-90 text-zinc-500" />
+                      )}
                       {device}
                     </span>
-                    <span className="font-mono text-ink-soft">{count} ({ratio.toFixed(0)}%)</span>
+                    <span className="font-mono text-ink-soft">
+                      {count} ({ratio.toFixed(0)}%)
+                    </span>
                   </div>
                   <div className="w-full h-1.5 bg-zinc-100 rounded-none overflow-hidden">
-                    <div 
-                      className={`h-full ${device === "Desktop" ? "bg-zinc-800" : device === "Mobile" ? "bg-gold" : "bg-zinc-400"}`} 
-                      style={{ width: `${ratio}%` }} 
+                    <div
+                      className={`h-full ${device === "Desktop" ? "bg-zinc-800" : device === "Mobile" ? "bg-gold" : "bg-zinc-400"}`}
+                      style={{ width: `${ratio}%` }}
                     />
                   </div>
                 </div>
@@ -1799,15 +1842,21 @@ function TrafficTab() {
         {/* Pages Visited */}
         <div className="bg-card border border-ink/10 p-6 space-y-6">
           <div>
-            <h2 className="text-xs tracking-widest uppercase font-semibold">Popular Paths & Landing Pages</h2>
-            <p className="text-xs text-ink-soft mt-1">Most clicked routes sorted by interaction depth.</p>
+            <h2 className="text-xs tracking-widest uppercase font-semibold">
+              Popular Paths & Landing Pages
+            </h2>
+            <p className="text-xs text-ink-soft mt-1">
+              Most clicked routes sorted by interaction depth.
+            </p>
           </div>
           <div className="divide-y divide-ink/10">
             {sortedPages.map((page, idx) => (
               <div key={page.path} className="py-3 flex justify-between items-center text-xs">
                 <div className="flex items-center gap-3 overflow-hidden mr-4">
                   <span className="font-mono text-ink-soft w-4">0{idx + 1}</span>
-                  <span className="font-mono bg-zinc-100 hover:bg-zinc-200 text-zinc-800 px-1.5 py-0.5 rounded truncate select-all">{page.path}</span>
+                  <span className="font-mono bg-zinc-100 hover:bg-zinc-200 text-zinc-800 px-1.5 py-0.5 rounded truncate select-all">
+                    {page.path}
+                  </span>
                 </div>
                 <span className="font-mono font-semibold shrink-0">{page.hits} hits</span>
               </div>
@@ -1818,7 +1867,9 @@ function TrafficTab() {
         {/* Traffic Channels / Referrer and Live Feed */}
         <div className="bg-card border border-ink/10 p-6 space-y-6">
           <div>
-            <h2 className="text-xs tracking-widest uppercase font-semibold">Acquisition Channels</h2>
+            <h2 className="text-xs tracking-widest uppercase font-semibold">
+              Acquisition Channels
+            </h2>
             <p className="text-xs text-ink-soft mt-1">Inbound referrers and link directories.</p>
           </div>
           <div className="divide-y divide-ink/10">
@@ -1842,8 +1893,12 @@ function TrafficTab() {
       {/* Live Activity Log */}
       <div className="bg-card border border-ink/10 p-6 space-y-6">
         <div>
-          <h2 className="text-xs tracking-widest uppercase font-semibold">Live Traffic Audit Trail</h2>
-          <p className="text-xs text-ink-soft mt-1">Sequential list of recent browser navigation sessions.</p>
+          <h2 className="text-xs tracking-widest uppercase font-semibold">
+            Live Traffic Audit Trail
+          </h2>
+          <p className="text-xs text-ink-soft mt-1">
+            Sequential list of recent browser navigation sessions.
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs min-w-[700px]">
@@ -1861,9 +1916,15 @@ function TrafficTab() {
               {events.slice(0, 15).map((evt) => (
                 <tr key={evt.id} className="hover:bg-zinc-50/50">
                   <td className="py-3 font-mono text-[11px] text-ink-soft">
-                    {new Date(evt.timestamp).toLocaleString("en-NG", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    {new Date(evt.timestamp).toLocaleString("en-NG", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
                   </td>
-                  <td className="py-3 font-mono text-zinc-500">{evt.sessionId ? evt.sessionId.slice(-6) : "Unknown"}</td>
+                  <td className="py-3 font-mono text-zinc-500">
+                    {evt.sessionId ? evt.sessionId.slice(-6) : "Unknown"}
+                  </td>
                   <td className="py-3 font-mono font-medium text-zinc-900">{evt.path}</td>
                   <td className="py-3">
                     <span className="bg-zinc-100 text-zinc-800 font-medium px-2 py-0.5 rounded text-[10px] font-mono">
@@ -1871,12 +1932,16 @@ function TrafficTab() {
                     </span>
                   </td>
                   <td className="py-3 text-ink-soft font-mono text-[11px]">{evt.browser}</td>
-                  <td className="py-3 text-ink-soft truncate max-w-[200px]" title={evt.referrer}>{evt.referrer}</td>
+                  <td className="py-3 text-ink-soft truncate max-w-[200px]" title={evt.referrer}>
+                    {evt.referrer}
+                  </td>
                 </tr>
               ))}
               {events.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-ink-soft">No traffic logs parsed yet. Let visitors view the app.</td>
+                  <td colSpan={6} className="py-6 text-center text-ink-soft">
+                    No traffic logs parsed yet. Let visitors view the app.
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -1886,4 +1951,3 @@ function TrafficTab() {
     </div>
   );
 }
-

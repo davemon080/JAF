@@ -698,7 +698,11 @@ function getDeviceType(): "Mobile" | "Tablet" | "Desktop" {
   if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
     return "Tablet";
   }
-  if (/Mobile|iP(hone|od)|Android|BlackBerry|IEMobile|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/i.test(ua)) {
+  if (
+    /Mobile|iP(hone|od)|Android|BlackBerry|IEMobile|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/i.test(
+      ua,
+    )
+  ) {
     return "Mobile";
   }
   return "Desktop";
@@ -734,7 +738,7 @@ function getSessionId(): string {
 export async function logTrafficEvent(pathname: string): Promise<void> {
   try {
     if (typeof window === "undefined") return;
-    
+
     // Skip logging admin and auth routes to avoid muddying metrics
     if (pathname.startsWith("/admin") || pathname.startsWith("/auth")) {
       return;
@@ -743,7 +747,7 @@ export async function logTrafficEvent(pathname: string): Promise<void> {
     const id = "evt_" + Math.random().toString(36).substring(2, 11) + "_" + Date.now();
     const dateObj = new Date();
     const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
-    
+
     const event = {
       id,
       path: pathname,
@@ -754,7 +758,7 @@ export async function logTrafficEvent(pathname: string): Promise<void> {
       browser: getBrowserName(),
       referrer: document.referrer || "Direct Link",
     };
-    
+
     await setDoc(doc(db, "traffic_events", id), cleanUndefined(event));
   } catch (error) {
     console.error("Failed to log traffic event:", error);
@@ -779,4 +783,3 @@ export function subscribeToTrafficEvents(callback: (events: any[]) => void) {
     },
   );
 }
-

@@ -75,8 +75,8 @@ function ProductPage() {
   const [copied, setCopied] = useState(false);
   const shareUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/product/${product.slug}`
-      : `https://justafriend.com.ng/product/${product.slug}`;
+      ? `${window.location.origin}/#/product/${product.slug}`
+      : `https://justafriend.com.ng/#/product/${product.slug}`;
 
   const handleCopyLink = () => {
     navigator.clipboard
