@@ -32,7 +32,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2.5 group">
             <JafMark size={36} />
-            <span className="hidden sm:inline font-display font-semibold tracking-tighter text-xl group-hover:text-gold transition-colors">
+            <span className="inline font-display font-semibold tracking-tighter text-xl group-hover:text-gold transition-colors">
               JAF<span className="text-gold">.</span>
             </span>
           </Link>

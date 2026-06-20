@@ -11,6 +11,7 @@ import {
   type Order,
 } from "@/lib/store";
 import { type Product, SEED_PRODUCTS, CATEGORY_LABELS, type Category } from "@/data/products";
+import { SafeImage } from "@/components/safe-image";
 import { formatNaira } from "@/lib/format";
 import { type DeliveryZone } from "@/data/zones";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -528,11 +529,12 @@ function ProductsTab() {
               <tr key={p.id} className="border-t border-ink/5">
                 <td className="p-3">
                   <div className="flex items-center gap-3">
-                    <img
+                    <SafeImage
                       src={p.images[0]}
-                      alt=""
+                      alt={p.name}
                       referrerPolicy="no-referrer"
-                      className="size-10 object-cover"
+                      containerClassName="size-10 shrink-0"
+                      className="w-full h-full object-cover"
                     />
                     <div>
                       <p className="font-medium">{p.name}</p>
@@ -709,69 +711,79 @@ function ProductEditor({
         </div>
 
         {/* Dynamic Image Uploaders */}
-        <div className="space-y-3">
-          <div>
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1">
-              Image 1 (Primary)
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] tracking-widest uppercase font-bold text-ink">
+              Product Images ({p.images.length})
             </span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={p.images[0] ?? ""}
-                onChange={(e) => set("images", [e.target.value, ...p.images.slice(1)])}
-                placeholder="Paste image URL here"
-                className="flex-1 border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink"
-              />
-              <label className="border border-ink bg-ink text-canvas hover:bg-gold hover:border-gold px-3 py-2 text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors flex items-center shrink-0">
-                Upload File
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageUpload(e, 0)}
-                  className="hidden"
-                />
-              </label>
-            </div>
-            {p.images[0] && (
-              <img
-                src={p.images[0]}
-                alt="Primary Preview"
-                referrerPolicy="no-referrer"
-                className="mt-2 size-16 object-cover border border-ink/10"
-              />
-            )}
+            <button
+              type="button"
+              onClick={() => set("images", [...p.images, ""])}
+              className="text-[10px] tracking-widest uppercase text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1.5 transition-colors"
+            >
+              + Add Image Slot
+            </button>
           </div>
 
-          <div>
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1">
-              Image 2 (Secondary, Hover)
-            </span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={p.images[1] ?? ""}
-                onChange={(e) => set("images", [p.images[0] ?? "", e.target.value])}
-                placeholder="Paste secondary image URL"
-                className="flex-1 border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink"
-              />
-              <label className="border border-ink bg-ink text-canvas hover:bg-gold hover:border-gold px-3 py-2 text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors flex items-center shrink-0">
-                Upload File
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageUpload(e, 1)}
-                  className="hidden"
-                />
-              </label>
-            </div>
-            {p.images[1] && (
-              <img
-                src={p.images[1]}
-                alt="Secondary Preview"
-                referrerPolicy="no-referrer"
-                className="mt-2 size-16 object-cover border border-ink/10"
-              />
-            )}
+          <div className="space-y-3 border border-ink/5 p-3 bg-zinc-50/50">
+            {p.images.map((imgUrl, index) => (
+              <div
+                key={index}
+                className="border-b border-ink/5 pb-3 last:border-b-0 last:pb-0 space-y-2 animate-fade-in"
+              >
+                <div className="flex justify-between items-center text-[10px] tracking-widest uppercase font-medium text-ink-soft">
+                  <span>
+                    Image {index + 1}{" "}
+                    {index === 0 ? "(Primary)" : index === 1 ? "(Hover/Secondary)" : ""}
+                  </span>
+                  {p.images.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        set(
+                          "images",
+                          p.images.filter((_, i) => i !== index),
+                        )
+                      }
+                      className="text-destructive font-semibold hover:underline"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={imgUrl ?? ""}
+                    onChange={(e) => {
+                      const updated = [...p.images];
+                      updated[index] = e.target.value;
+                      set("images", updated);
+                    }}
+                    placeholder={`Paste URL for Image ${index + 1}`}
+                    className="flex-1 border border-ink/20 px-3 py-2 text-sm bg-canvas outline-none focus:border-ink"
+                  />
+                  <label className="border border-ink bg-ink text-canvas hover:bg-gold hover:border-gold px-3 py-2 text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors flex items-center shrink-0">
+                    Upload File
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, index)}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {imgUrl && (
+                  <SafeImage
+                    src={imgUrl}
+                    alt={`Preview ${index + 1}`}
+                    referrerPolicy="no-referrer"
+                    containerClassName="mt-2 size-16 border border-ink/10 shrink-0"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

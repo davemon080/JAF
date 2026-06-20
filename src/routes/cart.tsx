@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCart, useCatalog } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
 import { Minus, Plus, X } from "lucide-react";
+import { SafeImage } from "@/components/safe-image";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -55,7 +56,7 @@ function CartPage() {
                   params={{ slug: item.product.slug }}
                   className="w-24 sm:w-32 aspect-[4/5] bg-zinc-100 shrink-0"
                 >
-                  <img
+                  <SafeImage
                     src={item.product.images[0]}
                     alt={item.product.name}
                     referrerPolicy="no-referrer"

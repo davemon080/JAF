@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { type Product } from "@/data/products";
 import { formatNaira } from "@/lib/format";
+import { SafeImage } from "@/components/safe-image";
 
 const TAG_LABEL: Record<NonNullable<Product["tag"]>, string> = {
   "new-drop": "NEW DROP",
@@ -20,7 +21,7 @@ export function ProductCard({ product, dark = false }: { product: Product; dark?
       className={`${surface} group cursor-pointer block`}
     >
       <div className="aspect-[4/5] relative overflow-hidden bg-zinc-200">
-        <img
+        <SafeImage
           src={product.images[0]}
           alt={product.name}
           loading="lazy"
@@ -30,14 +31,15 @@ export function ProductCard({ product, dark = false }: { product: Product; dark?
           className="w-full h-full object-cover transition-opacity duration-500 group-hover:opacity-0"
         />
         {product.images[1] && (
-          <img
+          <SafeImage
             src={product.images[1]}
-            alt=""
+            alt={product.name + " alternate"}
             loading="lazy"
             width={1024}
             height={1280}
             referrerPolicy="no-referrer"
-            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+            containerClassName="absolute inset-0"
+            className="w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
           />
         )}
         {product.tag && (

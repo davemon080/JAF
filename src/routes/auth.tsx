@@ -7,7 +7,13 @@ import { toast } from "sonner";
 import { JafMark } from "@/components/jaf-logo";
 import { Eye, EyeOff } from "lucide-react";
 
+const authSearchSchema = z.object({
+  redirect: z.string().optional(),
+  mode: z.string().optional(),
+});
+
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search) => authSearchSchema.parse(search),
   head: () => ({
     meta: [
       { title: "Sign in — JAF" },
@@ -29,7 +35,10 @@ const passwordSchema = z.string().min(8, "Min 8 characters").max(72);
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
+  const { redirect, mode: searchMode } = Route.useSearch();
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">(
+    searchMode === "signup" ? "signup" : "signin",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -44,12 +53,13 @@ function AuthPage() {
           useAdmin.getState().setAuthed(true);
           navigate({ to: "/admin" });
         } else {
-          navigate({ to: "/" });
+          const dest = redirect || "/";
+          navigate({ to: dest as "/checkout" | "/" });
         }
       }
     });
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, redirect]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

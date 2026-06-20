@@ -145,6 +145,14 @@ function CheckoutPage() {
   };
 
   const placeOrder = () => {
+    if (!auth.currentUser) {
+      toast.error("Please create an account or sign in to place your order.");
+      navigate({
+        to: "/auth",
+        search: { mode: "signup", redirect: "/checkout" },
+      });
+      return;
+    }
     if (paying) return;
     setPaying(true);
 
@@ -439,11 +447,11 @@ function CheckoutPage() {
               <button
                 onClick={placeOrder}
                 disabled={paying}
-                className="bg-ink hover:bg-gold hover:text-ink disabled:bg-ink-soft/40 disabled:text-ink-soft disabled:cursor-not-allowed px-6 py-3 text-xs font-medium tracking-widest uppercase transition-colors flex items-center justify-center gap-2"
+                className="bg-gold hover:bg-gold-soft text-ink disabled:bg-ink-soft/40 disabled:text-ink-soft disabled:cursor-not-allowed px-8 py-3.5 text-xs font-semibold tracking-widest uppercase transition-all flex items-center justify-center gap-2 w-full sm:w-auto shadow-md"
               >
                 {paying ? (
                   <>
-                    <span className="animate-spin border-2 border-canvas border-b-transparent rounded-full size-3 block"></span>
+                    <span className="animate-spin border-2 border-ink border-b-transparent rounded-full size-3 block"></span>
                     Processing Payment...
                   </>
                 ) : (

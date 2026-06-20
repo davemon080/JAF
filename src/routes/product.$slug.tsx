@@ -2,10 +2,11 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useCart, useCatalog, useWishlist } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
-import { Heart, Minus, Plus, Star } from "lucide-react";
+import { Heart, Minus, Plus, Star, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductCard } from "@/components/product-card";
 import { auth } from "@/lib/firebase";
+import { SafeImage } from "@/components/safe-image";
 
 export const Route = createFileRoute("/product/$slug")({
   head: ({ params }) => ({
@@ -37,6 +38,42 @@ function ProductPage() {
   const [color, setColor] = useState(product.colors[0]);
   const [qty, setQty] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
+
+  const [copied, setCopied] = useState(false);
+  const shareUrl = `https://justafriend.com.ng/product/${product.slug}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard
+      .writeText(shareUrl)
+      .then(() => {
+        setCopied(true);
+        toast.success("Product link copied to clipboard!");
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {
+        toast.error("Failed to copy link.");
+      });
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: product.name,
+          text: `Check out ${product.name} on JAF: ${product.subtitle}`,
+          url: shareUrl,
+        });
+        toast.success("Shared successfully!");
+      } catch (err) {
+        const errorName = err instanceof Error ? err.name : (err as { name?: string })?.name;
+        if (errorName !== "AbortError") {
+          handleCopyLink();
+        }
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
 
   const [reviewForm, setReviewForm] = useState({
     name: auth.currentUser?.displayName || auth.currentUser?.email?.split("@")[0] || "",
@@ -122,7 +159,7 @@ function ProductPage() {
         {/* GALLERY */}
         <div>
           <div className="aspect-[4/5] bg-zinc-100 overflow-hidden mb-3">
-            <img
+            <SafeImage
               src={product.images[activeImg]}
               alt={product.name}
               width={1024}
@@ -138,9 +175,9 @@ function ProductPage() {
                 onClick={() => setActiveImg(i)}
                 className={`aspect-square overflow-hidden border ${i === activeImg ? "border-ink" : "border-transparent"}`}
               >
-                <img
+                <SafeImage
                   src={src}
-                  alt=""
+                  alt={`${product.name} thumbnail ${i + 1}`}
                   loading="lazy"
                   width={256}
                   height={256}
@@ -241,6 +278,32 @@ function ProductPage() {
               className="size-[52px] grid place-items-center border border-ink hover:bg-ink hover:text-canvas transition-colors"
             >
               <Heart className={`size-4 ${wished ? "fill-current" : ""}`} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 border-t border-ink/5 pt-4">
+            <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
+              Share:
+            </span>
+            <button
+              onClick={handleCopyLink}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-ink/10 text-[10px] uppercase font-semibold tracking-widest hover:bg-zinc-100 transition-colors"
+              title="Copy link"
+            >
+              {copied ? (
+                <Check className="size-3 text-emerald-600 animate-scale-in" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+              {copied ? "COPIED" : "COPY LINK"}
+            </button>
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-ink/10 text-[10px] uppercase font-semibold tracking-widest hover:bg-zinc-100 transition-colors"
+              title="Share"
+            >
+              <Share2 className="size-3" />
+              SHARE PIECE
             </button>
           </div>
 
