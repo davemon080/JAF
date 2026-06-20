@@ -1,15 +1,27 @@
-import pTeeBlack from "@/assets/p-tee-black.jpg";
-import pTeeCream from "@/assets/p-tee-cream.jpg";
-import pLsCharcoal from "@/assets/p-ls-charcoal.jpg";
-import pHoodieBlack from "@/assets/p-hoodie-black.jpg";
-import pHoodieCream from "@/assets/p-hoodie-cream.jpg";
-import pHoodieGrey from "@/assets/p-hoodie-grey.jpg";
-import pCapTrucker from "@/assets/p-cap-trucker.jpg";
-import pCapDad from "@/assets/p-cap-dad.jpg";
-import pSetRoyal from "@/assets/p-set-royal-blue.jpg";
-import pLsFriend from "@/assets/p-ls-jaf-friend.jpg";
-import pTankWhite from "@/assets/p-tank-white.jpg";
-import pHoodieGold from "@/assets/p-hoodie-black-gold.jpg";
+const pTeeBlack =
+  "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=800";
+const pTeeCream =
+  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&q=80&w=800";
+const pLsCharcoal =
+  "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&fit=crop&q=80&w=800";
+const pHoodieBlack =
+  "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=800";
+const pHoodieCream =
+  "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=800";
+const pHoodieGrey =
+  "https://images.unsplash.com/photo-1556821840-41031d20f69d?auto=format&fit=crop&q=80&w=800";
+const pCapTrucker =
+  "https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&q=80&w=800";
+const pCapDad =
+  "https://images.unsplash.com/photo-1588850561338-20ab2fa788f0?auto=format&fit=crop&q=80&w=800";
+const pSetRoyal =
+  "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&q=80&w=800";
+const pLsFriend =
+  "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&fit=crop&q=80&w=800";
+const pTankWhite =
+  "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&q=80&w=800";
+const pHoodieGold =
+  "https://images.unsplash.com/photo-1620799140188-3b2a02fd9a55?auto=format&fit=crop&q=80&w=800";
 
 export type Category = "tees" | "hoodies" | "caps" | "sets";
 export type ProductTag = "new-drop" | "limited" | "best-seller" | "sold-out" | "just-in";

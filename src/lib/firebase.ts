@@ -9,6 +9,7 @@ import {
   setDoc,
   deleteDoc,
   getDocFromServer,
+  onSnapshot,
 } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
 import { SEED_PRODUCTS, type Product } from "@/data/products";
@@ -598,4 +599,93 @@ export async function deleteContactMessageFromFirestore(id: string): Promise<voi
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `messages/${id}`);
   }
+}
+
+// ------ Real-Time Subscriptions ------
+
+export function subscribeToProducts(callback: (products: Product[]) => void) {
+  const path = "products";
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const products: Product[] = [];
+      snapshot.forEach((docSnap) => {
+        products.push(docSnap.data() as Product);
+      });
+      callback(products);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    },
+  );
+}
+
+export function subscribeToZones(callback: (zones: DeliveryZone[]) => void) {
+  const path = "zones";
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const zones: DeliveryZone[] = [];
+      snapshot.forEach((docSnap) => {
+        zones.push(docSnap.data() as DeliveryZone);
+      });
+      callback(zones);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    },
+  );
+}
+
+export function subscribeToCoupons(callback: (coupons: any[]) => void) {
+  const path = "coupons";
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const coupons: any[] = [];
+      snapshot.forEach((docSnap) => {
+        coupons.push(docSnap.data());
+      });
+      callback(coupons);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    },
+  );
+}
+
+export function subscribeToOrders(callback: (orders: any[]) => void) {
+  const path = "orders";
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const orders: any[] = [];
+      snapshot.forEach((docSnap) => {
+        orders.push(docSnap.data());
+      });
+      // Sort orders by createdAt descending
+      orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      callback(orders);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    },
+  );
+}
+
+export function subscribeToBranding(
+  callback: (branding: { logoUrl: string; logoShape: "circle" | "square" }) => void,
+) {
+  const path = "settings/branding";
+  return onSnapshot(
+    doc(db, "settings", "branding"),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        callback(snapshot.data() as { logoUrl: string; logoShape: "circle" | "square" });
+      }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    },
+  );
 }

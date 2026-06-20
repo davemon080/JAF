@@ -19,6 +19,11 @@ import {
   fetchCouponsFromFirestore,
   fetchOrdersFromFirestore,
   fetchBrandingFromFirestore,
+  subscribeToProducts,
+  subscribeToZones,
+  subscribeToCoupons,
+  subscribeToOrders,
+  subscribeToBranding,
 } from "@/lib/firebase";
 
 function NotFoundComponent() {
@@ -97,41 +102,61 @@ function RootComponent() {
   const setOrdersRaw = useOrders((s) => s.setOrdersRaw);
 
   useEffect(() => {
+    let unsubProducts: (() => void) | undefined;
+    let unsubZones: (() => void) | undefined;
+    let unsubCoupons: (() => void) | undefined;
+    let unsubOrders: (() => void) | undefined;
+    let unsubBranding: (() => void) | undefined;
+
     async function initFirebase() {
       try {
-        // 1. Seed if empty
+        // 1. Seed database with defaults if it is completely empty
         await seedFirebaseIfEmpty();
 
-        // 2. Fetch all collections
-        const [products, zones, coupons, orders, branding] = await Promise.all([
-          fetchProductsFromFirestore(),
-          fetchZonesFromFirestore(),
-          fetchCouponsFromFirestore(),
-          fetchOrdersFromFirestore(),
-          fetchBrandingFromFirestore(),
-        ]);
+        // 2. Set up real-time listener subscriptions
+        unsubProducts = subscribeToProducts((products) => {
+          if (products && products.length > 0) {
+            setProductsRaw(products);
+          }
+        });
 
-        if (products && products.length > 0) {
-          setProductsRaw(products);
-        }
-        if (zones && zones.length > 0) {
-          setZonesRaw(zones);
-        }
-        if (coupons && coupons.length > 0) {
-          setCouponsRaw(coupons);
-        }
-        if (orders) {
-          setOrdersRaw(orders);
-        }
-        if (branding) {
-          setBranding(branding);
-        }
+        unsubZones = subscribeToZones((zones) => {
+          if (zones && zones.length > 0) {
+            setZonesRaw(zones);
+          }
+        });
+
+        unsubCoupons = subscribeToCoupons((coupons) => {
+          if (coupons && coupons.length > 0) {
+            setCouponsRaw(coupons);
+          }
+        });
+
+        unsubOrders = subscribeToOrders((orders) => {
+          if (orders) {
+            setOrdersRaw(orders);
+          }
+        });
+
+        unsubBranding = subscribeToBranding((branding) => {
+          if (branding) {
+            setBranding(branding);
+          }
+        });
       } catch (err) {
         console.error("Firebase load/sync error:", err);
       }
     }
 
     initFirebase();
+
+    return () => {
+      if (unsubProducts) unsubProducts();
+      if (unsubZones) unsubZones();
+      if (unsubCoupons) unsubCoupons();
+      if (unsubOrders) unsubOrders();
+      if (unsubBranding) unsubBranding();
+    };
   }, [setProductsRaw, setZonesRaw, setBranding, setCouponsRaw, setOrdersRaw]);
 
   return (

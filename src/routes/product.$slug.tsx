@@ -5,22 +5,51 @@ import { formatNaira } from "@/lib/format";
 import { Heart, Minus, Plus, Star, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductCard } from "@/components/product-card";
-import { auth } from "@/lib/firebase";
+import { auth, fetchProductsFromFirestore } from "@/lib/firebase";
 import { SafeImage } from "@/components/safe-image";
 
 export const Route = createFileRoute("/product/$slug")({
-  head: ({ params }) => ({
-    meta: [
-      { title: `${params.slug.replace(/-/g, " ").toUpperCase()} — JAF` },
-      {
-        name: "description",
-        content: `Shop the ${params.slug.replace(/-/g, " ")} from JAF. Heavyweight construction, shipping across Abuja & Lafia.`,
-      },
-      { property: "og:title", content: `${params.slug.replace(/-/g, " ").toUpperCase()} — JAF` },
-      { property: "og:url", content: `/product/${params.slug}` },
-    ],
-    links: [{ rel: "canonical", href: `/product/${params.slug}` }],
-  }),
+  loader: async ({ params }) => {
+    try {
+      const products = await fetchProductsFromFirestore();
+      const product = products.find((p) => p.slug === params.slug);
+      return { product };
+    } catch {
+      return { product: undefined };
+    }
+  },
+  head: ({ loaderData, params }) => {
+    const product = loaderData?.product;
+    const title = product
+      ? `${product.name} — JAF`
+      : `${params.slug.replace(/-/g, " ").toUpperCase()} — JAF`;
+    const desc = product
+      ? `${product.subtitle || product.name}: ${product.description}`
+      : `Shop the ${params.slug.replace(/-/g, " ")} from JAF. Heavyweight construction, shipping across Abuja & Lafia.`;
+    const image = product && product.images && product.images[0] ? product.images[0] : "";
+
+    const metaArray = [
+      { title },
+      { name: "description", content: desc },
+      { property: "og:title", content: title },
+      { property: "og:description", content: desc },
+      { property: "og:type", content: "product" },
+      { property: "og:url", content: `https://justafriend.com.ng/product/${params.slug}` },
+      { name: "twitter:title", content: title },
+      { name: "twitter:description", content: desc },
+    ];
+
+    if (image) {
+      metaArray.push({ property: "og:image", content: image });
+      metaArray.push({ name: "twitter:image", content: image });
+      metaArray.push({ name: "twitter:card", content: "summary_large_image" });
+    }
+
+    return {
+      meta: metaArray,
+      links: [{ rel: "canonical", href: `https://justafriend.com.ng/product/${params.slug}` }],
+    };
+  },
   component: ProductPage,
 });
 

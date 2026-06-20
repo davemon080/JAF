@@ -436,6 +436,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function ProductsTab() {
   const { products, upsert, remove, reset } = useCatalog();
   const [editing, setEditing] = useState<Product | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -488,6 +489,25 @@ function ProductsTab() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-4xl font-semibold tracking-tighter">Products</h1>
         <div className="flex gap-2">
+          {selectedIds.length > 0 && (
+            <button
+              onClick={() => {
+                triggerConfirm(
+                  "Bulk Delete Products",
+                  `Are you sure you want to delete the ${selectedIds.length} selected product(s)? This action completely removes them from the database and is irreversible.`,
+                  () => {
+                    selectedIds.forEach((id) => remove(id));
+                    toast.success(`${selectedIds.length} product(s) deleted successfully.`);
+                    setSelectedIds([]);
+                  },
+                  "danger",
+                );
+              }}
+              className="bg-destructive text-white hover:bg-red-700 px-4 py-2 text-xs tracking-widest uppercase flex items-center gap-2 transition-colors font-medium border border-transparent"
+            >
+              <Trash2 className="size-3.5" /> Delete Selected ({selectedIds.length})
+            </button>
+          )}
           <button
             onClick={() => {
               triggerConfirm(
@@ -496,6 +516,7 @@ function ProductsTab() {
                 () => {
                   reset();
                   toast.success("Products reset to seeds.");
+                  setSelectedIds([]);
                 },
                 "warning",
               );
@@ -517,6 +538,20 @@ function ProductsTab() {
         <table className="w-full text-sm">
           <thead className="text-[10px] tracking-widest uppercase text-ink-soft border-b border-ink/10">
             <tr>
+              <th className="p-3 w-10 text-center">
+                <input
+                  type="checkbox"
+                  checked={products.length > 0 && selectedIds.length === products.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds(products.map((p) => p.id));
+                    } else {
+                      setSelectedIds([]);
+                    }
+                  }}
+                  className="size-3.5 accent-ink rounded border-ink/20 focus:ring-1 focus:ring-ink cursor-pointer"
+                />
+              </th>
               <th className="text-left p-3">Name</th>
               <th className="text-left p-3">Category</th>
               <th className="text-right p-3">Price</th>
@@ -527,6 +562,20 @@ function ProductsTab() {
           <tbody>
             {products.map((p) => (
               <tr key={p.id} className="border-t border-ink/5">
+                <td className="p-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(p.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds((prev) => [...prev, p.id]);
+                      } else {
+                        setSelectedIds((prev) => prev.filter((id) => id !== p.id));
+                      }
+                    }}
+                    className="size-3.5 accent-ink rounded border-ink/20 focus:ring-1 focus:ring-ink cursor-pointer"
+                  />
+                </td>
                 <td className="p-3">
                   <div className="flex items-center gap-3">
                     <SafeImage
@@ -559,6 +608,7 @@ function ProductsTab() {
                           toast.success(
                             `Product "${p.name}" deleted successfully from the database.`,
                           );
+                          setSelectedIds((prev) => prev.filter((id) => id !== p.id));
                         },
                         "danger",
                       );
