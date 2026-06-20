@@ -115,6 +115,22 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "name", "email", "message", "createdAt"]
+    },
+    "TrafficEvent": {
+      "title": "TrafficEvent",
+      "description": "Log of client-side navigation hits and session attributes for traffic analysis.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "date": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "device": { "type": "string" },
+        "browser": { "type": "string" },
+        "referrer": { "type": "string" }
+      },
+      "required": ["id", "path", "timestamp", "sessionId", "device", "browser"]
     }
   },
   "firestore": {
@@ -145,6 +161,10 @@
     "messages": {
       "schema": "Message",
       "description": "Message entries submitted by users from the contact us page."
+    },
+    "traffic_events": {
+      "schema": "TrafficEvent",
+      "description": "Visitor logs measuring routing hits, distinct devices, and traffic origins over time."
     }
   }
 }
