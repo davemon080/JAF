@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- Main Static Pages -->
+  <url>
+    <loc>https://justafriend.com.ng/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/shop</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/about</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/faq</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/track</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/wishlist</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/cart</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <!-- Product Pages & Associated Google Images -->
+  <url>
+    <loc>https://justafriend.com.ng/product/situationship-tee-black</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>SITUATIONSHIP TEE - JET BLACK</image:title>
+      <image:caption>JAF Streetwear - Situationship Tee in heavyweight cotton Jet Black</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/no-strings-tee-cream</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>NO STRINGS TEE - OFF-WHITE</image:title>
+      <image:caption>JAF Streetwear - No Strings Tee in Cream heavyweight cotton</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/delusional-long-sleeve</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>DELUSIONAL LONG SLEEVE - CHARCOAL</image:title>
+      <image:caption>JAF Streetwear - Delusional Long Sleeve shirt in Charcoal</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/seen-at-2am-tee</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>SEEN AT 2AM TEE - JET BLACK</image:title>
+      <image:caption>JAF Streetwear - Seen At 2AM Tee in Jet Black ribbed crew cotton</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/vibes-only-hoodie</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>VIBES ONLY HOODIE - CREAM</image:title>
+      <image:caption>JAF Streetwear - Vibes Only Hoodie in Off-White oversized fit</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/brotherly-love-hoodie</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1556821840-41031d20f69d?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>BROTHERLY LOVE HOODIE - GREY</image:title>
+      <image:caption>JAF Streetwear - Brotherly Love Hoodie in Heather Grey</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/status-quo-zip-hoodie</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>STATUS QUO ZIP HOODIE - JET BLACK</image:title>
+      <image:caption>JAF Streetwear - Status Quo Zip Hoodie in Heavyweight Jet Black</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/friendzone-hoodie-black</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>FRIENDZONE HOODIE - JET BLACK</image:title>
+      <image:caption>JAF Streetwear - Friendzone Hoodie in Jet Black</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/archive-trucker-cap</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>ARCHIVE TRUCKER CAP</image:title>
+      <image:caption>JAF Streetwear - Archive Trucker mesh snapback cap</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/zone-warning-dad-hat</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1588850561338-20ab2fa788f0?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>ZONE WARNING DAD HAT</image:title>
+      <image:caption>JAF Streetwear - Zone Warning classic adjustable dad hat</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/jaf-monogram-cap</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1588850561338-20ab2fa788f0?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>JAF MONOGRAM CAP</image:title>
+      <image:caption>JAF Streetwear - Logo Monogram structural cap</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/no-labels-long-sleeve</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>NO LABELS LONG SLEEVE - CHARCOAL</image:title>
+      <image:caption>JAF Streetwear - No Labels long sleeve basic in soft Charcoal</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/jaf-up-down-royal-blue</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>JAF ROYAL BLUE SET (UP &amp; DOWN)</image:title>
+      <image:caption>JAF Streetwear - Up and Down leisure set in rich Royal Blue</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/jaf-friend-long-sleeve-white</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>JAF FRIEND LONG SLEEVE - WHITE</image:title>
+      <image:caption>JAF Streetwear - Just A Friend definition print long sleeve white</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/jaf-trademark-tank-white</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>JAF TRADEMARK TANK - WHITE</image:title>
+      <image:caption>JAF Streetwear - Ribbed cotton modern tank top in White</image:caption>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://justafriend.com.ng/product/jaf-hoodie-black-gold</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1620799140188-3b2a02fd9a55?auto=format&amp;fit=crop&amp;q=80&amp;w=800</image:loc>
+      <image:title>JAF BLACK &amp; GOLD HOODIE</image:title>
+      <image:caption>JAF Streetwear - Gold graphic print on heavyweight Black hoodie</image:caption>
+    </image:image>
+  </url>
+  
+</urlset>

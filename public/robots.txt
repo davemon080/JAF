@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+# Exclude Admin, Account, and Auth pages from search results to prevent indexing customer logs or dashboards
+Disallow: /admin
+Disallow: /admin/
+Disallow: /account
+Disallow: /account/
+Disallow: /auth
+Disallow: /auth/
+Disallow: /checkout
+Disallow: /checkout/
+
+Sitemap: https://justafriend.com.ng/sitemap.xml
