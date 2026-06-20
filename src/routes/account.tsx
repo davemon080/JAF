@@ -19,7 +19,9 @@ export const Route = createFileRoute("/account")({
     meta: [
       { title: "My Account — JAF" },
       { name: "description", content: "View your order history and manage your account settings." },
+      { property: "og:url", content: "https://justafriend.com.ng/account" },
     ],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/account" }],
   }),
   component: AccountPage,
 });

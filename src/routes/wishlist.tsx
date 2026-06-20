@@ -7,9 +7,9 @@ export const Route = createFileRoute("/wishlist")({
     meta: [
       { title: "Wishlist — JAF" },
       { name: "description", content: "Your saved JAF pieces." },
-      { property: "og:url", content: "/wishlist" },
+      { property: "og:url", content: "https://justafriend.com.ng/wishlist" },
     ],
-    links: [{ rel: "canonical", href: "/wishlist" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/wishlist" }],
   }),
   component: WishlistPage,
 });

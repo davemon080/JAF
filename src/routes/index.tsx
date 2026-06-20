@@ -21,9 +21,9 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "Rock JAF. Know your status. Streetwear shipping across Abuja & Lafia.",
       },
-      { property: "og:url", content: "/" },
+      { property: "og:url", content: "https://justafriend.com.ng/" },
     ],
-    links: [{ rel: "canonical", href: "/" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/" }],
   }),
   component: HomePage,
 });

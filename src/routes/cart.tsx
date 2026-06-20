@@ -10,9 +10,9 @@ export const Route = createFileRoute("/cart")({
       { title: "Cart — JAF" },
       { name: "description", content: "Review your JAF bag and proceed to checkout." },
       { property: "og:title", content: "Cart — JAF" },
-      { property: "og:url", content: "/cart" },
+      { property: "og:url", content: "https://justafriend.com.ng/cart" },
     ],
-    links: [{ rel: "canonical", href: "/cart" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/cart" }],
   }),
   component: CartPage,
 });

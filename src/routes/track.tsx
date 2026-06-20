@@ -17,9 +17,9 @@ export const Route = createFileRoute("/track")({
     meta: [
       { title: "Track Order — JAF" },
       { name: "description", content: "Track your JAF order by reference number." },
-      { property: "og:url", content: "/track" },
+      { property: "og:url", content: "https://justafriend.com.ng/track" },
     ],
-    links: [{ rel: "canonical", href: "/track" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/track" }],
   }),
   validateSearch: z.object({ ref: z.string().optional() }),
   component: TrackPage,

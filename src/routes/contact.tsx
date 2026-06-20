@@ -19,9 +19,9 @@ export const Route = createFileRoute("/contact")({
         content: "Talk to JAF. WhatsApp, email or message us directly. Based in Lafia & Abuja.",
       },
       { property: "og:title", content: "Contact — JAF" },
-      { property: "og:url", content: "/contact" },
+      { property: "og:url", content: "https://justafriend.com.ng/contact" },
     ],
-    links: [{ rel: "canonical", href: "/contact" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/contact" }],
   }),
   component: ContactPage,
 });

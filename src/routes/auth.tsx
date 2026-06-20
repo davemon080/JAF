@@ -24,8 +24,9 @@ export const Route = createFileRoute("/auth")({
       },
       { property: "og:title", content: "Sign in — JAF" },
       { property: "og:description", content: "Just A Friend. Know your status." },
+      { property: "og:url", content: "https://justafriend.com.ng/auth" },
     ],
-    links: [{ rel: "canonical", href: "/auth" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/auth" }],
   }),
   component: AuthPage,
 });

@@ -42,9 +42,9 @@ export const Route = createFileRoute("/faq")({
         content: "Answers about JAF: delivery, returns, sizing, payment and restocks.",
       },
       { property: "og:title", content: "FAQ — JAF" },
-      { property: "og:url", content: "/faq" },
+      { property: "og:url", content: "https://justafriend.com.ng/faq" },
     ],
-    links: [{ rel: "canonical", href: "/faq" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/faq" }],
     scripts: [
       {
         type: "application/ld+json",

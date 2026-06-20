@@ -10,9 +10,9 @@ export const Route = createFileRoute("/about")({
           "JAF is a Nigerian streetwear label built for the situationship era. Designed in Lafia, shipped from Abuja.",
       },
       { property: "og:title", content: "About — JAF" },
-      { property: "og:url", content: "/about" },
+      { property: "og:url", content: "https://justafriend.com.ng/about" },
     ],
-    links: [{ rel: "canonical", href: "/about" }],
+    links: [{ rel: "canonical", href: "https://justafriend.com.ng/about" }],
   }),
   component: AboutPage,
 });
