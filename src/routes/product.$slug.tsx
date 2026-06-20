@@ -55,8 +55,12 @@ export const Route = createFileRoute("/product/$slug")({
 
 function ProductPage() {
   const { slug } = Route.useParams();
+  const loaderData = Route.useLoaderData();
   const products = useCatalog((s) => s.products);
-  const product = products.find((p) => p.slug === slug);
+
+  // Find product from store, fall back to preloaded data during initial sync to avoid premature 404
+  const product = products.find((p) => p.slug === slug) || loaderData?.product;
+
   if (!product) throw notFound();
 
   const add = useCart((s) => s.add);

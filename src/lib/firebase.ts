@@ -689,3 +689,94 @@ export function subscribeToBranding(
     },
   );
 }
+
+// ------ Traffic Logging / Analytics Helpers ------
+
+function getDeviceType(): "Mobile" | "Tablet" | "Desktop" {
+  if (typeof window === "undefined") return "Desktop";
+  const ua = navigator.userAgent;
+  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+    return "Tablet";
+  }
+  if (/Mobile|iP(hone|od)|Android|BlackBerry|IEMobile|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/i.test(ua)) {
+    return "Mobile";
+  }
+  return "Desktop";
+}
+
+function getBrowserName(): string {
+  if (typeof window === "undefined") return "Chrome";
+  const ua = navigator.userAgent;
+  if (ua.indexOf("Firefox") > -1) return "Firefox";
+  if (ua.indexOf("SamsungBrowser") > -1) return "Samsung Browser";
+  if (ua.indexOf("Opera") > -1 || ua.indexOf("OPR") > -1) return "Opera";
+  if (ua.indexOf("Trident") > -1) return "Internet Explorer";
+  if (ua.indexOf("Edge") > -1) return "Edge";
+  if (ua.indexOf("Chrome") > -1) return "Chrome";
+  if (ua.indexOf("Safari") > -1) return "Safari";
+  return "Other";
+}
+
+let cachedSessionId: string | null = null;
+function getSessionId(): string {
+  if (typeof window === "undefined") return "SSR";
+  if (cachedSessionId) return cachedSessionId;
+  const key = "jaf_analytics_session_id";
+  let id = sessionStorage.getItem(key);
+  if (!id) {
+    id = "sess_" + Math.random().toString(36).substring(2, 11);
+    sessionStorage.setItem(key, id);
+  }
+  cachedSessionId = id;
+  return id;
+}
+
+export async function logTrafficEvent(pathname: string): Promise<void> {
+  try {
+    if (typeof window === "undefined") return;
+    
+    // Skip logging admin and auth routes to avoid muddying metrics
+    if (pathname.startsWith("/admin") || pathname.startsWith("/auth")) {
+      return;
+    }
+
+    const id = "evt_" + Math.random().toString(36).substring(2, 11) + "_" + Date.now();
+    const dateObj = new Date();
+    const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+    
+    const event = {
+      id,
+      path: pathname,
+      timestamp: dateObj.toISOString(),
+      date: dateStr,
+      sessionId: getSessionId(),
+      device: getDeviceType(),
+      browser: getBrowserName(),
+      referrer: document.referrer || "Direct Link",
+    };
+    
+    await setDoc(doc(db, "traffic_events", id), cleanUndefined(event));
+  } catch (error) {
+    console.error("Failed to log traffic event:", error);
+  }
+}
+
+export function subscribeToTrafficEvents(callback: (events: any[]) => void) {
+  const path = "traffic_events";
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const events: any[] = [];
+      snapshot.forEach((docSnap) => {
+        events.push(docSnap.data());
+      });
+      // Sort events by timestamp descending
+      events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      callback(events);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    },
+  );
+}
+

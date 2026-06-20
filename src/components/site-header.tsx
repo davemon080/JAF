@@ -6,6 +6,7 @@ import { JafMark } from "@/components/jaf-logo";
 import { auth } from "@/lib/firebase";
 
 const NAV = [
+  { to: "/", label: "HOME" },
   { to: "/shop", label: "SHOP" },
   { to: "/about", label: "ABOUT" },
   { to: "/track", label: "TRACK" },
@@ -41,7 +42,7 @@ export function SiteHeader() {
               <Link
                 key={n.to}
                 to={n.to}
-                className={`text-xs font-medium tracking-widest transition-colors hover:text-gold ${pathname.startsWith(n.to) ? "text-ink" : "text-ink-soft"}`}
+                className={`text-xs font-medium tracking-widest transition-colors hover:text-gold ${(n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)) ? "text-ink" : "text-ink-soft"}`}
               >
                 {n.label}
               </Link>

@@ -24,6 +24,7 @@ import {
   subscribeToCoupons,
   subscribeToOrders,
   subscribeToBranding,
+  logTrafficEvent,
 } from "@/lib/firebase";
 
 function NotFoundComponent() {
@@ -100,6 +101,10 @@ function RootComponent() {
   const setBranding = useCatalog((s) => s.setBranding);
   const setCouponsRaw = useCoupons((s) => s.setCouponsRaw);
   const setOrdersRaw = useOrders((s) => s.setOrdersRaw);
+
+  useEffect(() => {
+    logTrafficEvent(pathname);
+  }, [pathname]);
 
   useEffect(() => {
     let unsubProducts: (() => void) | undefined;
