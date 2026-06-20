@@ -16,6 +16,7 @@ export const Route = createFileRoute("/checkout")({
         content: "Complete your JAF order. Paystack-ready, delivery to Lafia & Abuja.",
       },
       { property: "og:url", content: "https://justafriend.com.ng/checkout" },
+      { name: "robots", content: "noindex" },
     ],
     links: [{ rel: "canonical", href: "https://justafriend.com.ng/checkout" }],
   }),

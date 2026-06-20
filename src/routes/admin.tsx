@@ -452,6 +452,13 @@ function ProductsTab() {
   const { products, upsert, remove, reset } = useCatalog();
   const [editing, setEditing] = useState<Product | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const itemsPerPage = 30;
+  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const activePage = Math.min(Math.max(currentPage, 1), totalPages || 1);
+  const startIndex = (activePage - 1) * itemsPerPage;
+  const paginatedProducts = products.slice(startIndex, startIndex + itemsPerPage);
 
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -556,12 +563,23 @@ function ProductsTab() {
               <th className="p-3 w-10 text-center">
                 <input
                   type="checkbox"
-                  checked={products.length > 0 && selectedIds.length === products.length}
+                  checked={
+                    paginatedProducts.length > 0 &&
+                    paginatedProducts.every((p) => selectedIds.includes(p.id))
+                  }
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedIds(products.map((p) => p.id));
+                      setSelectedIds((prev) => {
+                        const next = [...prev];
+                        paginatedProducts.forEach((p) => {
+                          if (!next.includes(p.id)) next.push(p.id);
+                        });
+                        return next;
+                      });
                     } else {
-                      setSelectedIds([]);
+                      setSelectedIds((prev) =>
+                        prev.filter((id) => !paginatedProducts.some((p) => p.id === id)),
+                      );
                     }
                   }}
                   className="size-3.5 accent-ink rounded border-ink/20 focus:ring-1 focus:ring-ink cursor-pointer"
@@ -575,7 +593,7 @@ function ProductsTab() {
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => (
+            {paginatedProducts.map((p) => (
               <tr key={p.id} className="border-t border-ink/5">
                 <td className="p-3 w-10 text-center">
                   <input
@@ -638,6 +656,69 @@ function ProductsTab() {
             ))}
           </tbody>
         </table>
+
+        {products.length > itemsPerPage && (
+          <div className="flex items-center justify-between border-t border-ink/10 px-4 py-3 bg-card sm:px-6">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={activePage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-ink/15 text-xs font-semibold uppercase tracking-wider text-ink bg-transparent hover:bg-ink/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                disabled={activePage === totalPages}
+                className="relative ml-3 inline-flex items-center px-4 py-2 border border-ink/15 text-xs font-semibold uppercase tracking-wider text-ink bg-transparent hover:bg-ink/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between w-full">
+              <div>
+                <p className="text-xs text-ink-soft">
+                  Showing <span className="font-semibold text-ink">{startIndex + 1}</span> to{" "}
+                  <span className="font-semibold text-ink">
+                    {Math.min(startIndex + itemsPerPage, products.length)}
+                  </span>{" "}
+                  of <span className="font-semibold text-ink">{products.length}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    disabled={activePage === 1}
+                    className="relative inline-flex items-center px-3 py-2 border border-ink/15 text-ink hover:bg-ink/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-semibold uppercase tracking-wide rounded-l"
+                  >
+                    Prev
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`relative inline-flex items-center px-4 py-2 border border-ink/15 text-xs font-semibold transition-colors ${
+                        page === activePage
+                          ? "z-10 bg-ink text-canvas border-ink"
+                          : "text-ink hover:bg-ink/5"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={activePage === totalPages}
+                    className="relative inline-flex items-center px-3 py-2 border border-ink/15 text-ink hover:bg-ink/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-semibold uppercase tracking-wide rounded-r"
+                  >
+                    Next
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {editing && (

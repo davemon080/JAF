@@ -11,6 +11,7 @@ export const Route = createFileRoute("/cart")({
       { name: "description", content: "Review your JAF bag and proceed to checkout." },
       { property: "og:title", content: "Cart — JAF" },
       { property: "og:url", content: "https://justafriend.com.ng/cart" },
+      { name: "robots", content: "noindex" },
     ],
     links: [{ rel: "canonical", href: "https://justafriend.com.ng/cart" }],
   }),

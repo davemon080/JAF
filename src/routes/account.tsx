@@ -20,6 +20,7 @@ export const Route = createFileRoute("/account")({
       { title: "My Account — JAF" },
       { name: "description", content: "View your order history and manage your account settings." },
       { property: "og:url", content: "https://justafriend.com.ng/account" },
+      { name: "robots", content: "noindex" },
     ],
     links: [{ rel: "canonical", href: "https://justafriend.com.ng/account" }],
   }),
@@ -182,8 +183,8 @@ function AccountPage() {
 
   const handleCancelOrder = (orderRef: string, createdAt: string) => {
     const elapsedHrs = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60);
-    if (elapsedHrs > 12) {
-      toast.error("You can only cancel an order within 12 hours of placing it.");
+    if (elapsedHrs > 6) {
+      toast.error("You can only cancel an order within 6 hours of placing it.");
       return;
     }
     triggerConfirm(
@@ -570,8 +571,8 @@ function AccountPage() {
                       {(() => {
                         const elapsedHrs =
                           (Date.now() - new Date(o.createdAt).getTime()) / (1000 * 60 * 60);
-                        const canCancel = elapsedHrs <= 12;
-                        const remainingMinutes = Math.max(0, Math.round((12 - elapsedHrs) * 60));
+                        const canCancel = elapsedHrs <= 6;
+                        const remainingMinutes = Math.max(0, Math.round((6 - elapsedHrs) * 60));
                         const remainingFormatted =
                           remainingMinutes >= 60
                             ? `${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m`

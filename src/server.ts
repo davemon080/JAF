@@ -40,6 +40,73 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const url = new URL(request.url);
+      if (url.pathname === "/sitemap.xml" || url.pathname === "/sitemap") {
+        try {
+          const { fetchProductsFromFirestore } = await import("./lib/firebase");
+          const products = await fetchProductsFromFirestore();
+
+          let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://justafriend.com.ng/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/shop</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/about</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/faq</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://justafriend.com.ng/track</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.5</priority>
+  </url>`;
+
+          if (Array.isArray(products)) {
+            products.forEach((p) => {
+              if (p && p.slug) {
+                xml += `
+  <url>
+    <loc>https://justafriend.com.ng/product/${p.slug}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+              }
+            });
+          }
+
+          xml += `
+</urlset>`;
+
+          return new Response(xml, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/xml; charset=utf-8",
+              "Cache-Control": "public, max-age=3600, s-maxage=3600",
+            },
+          });
+        } catch (sitemapErr) {
+          console.error("Failed to generate dynamic sitemap, serving fallback:", sitemapErr);
+        }
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

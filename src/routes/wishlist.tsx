@@ -8,6 +8,7 @@ export const Route = createFileRoute("/wishlist")({
       { title: "Wishlist — JAF" },
       { name: "description", content: "Your saved JAF pieces." },
       { property: "og:url", content: "https://justafriend.com.ng/wishlist" },
+      { name: "robots", content: "noindex" },
     ],
     links: [{ rel: "canonical", href: "https://justafriend.com.ng/wishlist" }],
   }),
