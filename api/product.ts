@@ -92,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   <meta property="og:image:secure_url" content="${image}" />
   <meta property="og:image:width" content="800" />
   <meta property="og:image:height" content="800" />
+  <meta property="og:url" content="https://justafriend.com.ng/product/${slugStr}" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
