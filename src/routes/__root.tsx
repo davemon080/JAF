@@ -11,7 +11,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
-import { useCatalog, useCoupons, useOrders } from "@/lib/store";
+import { AdTopBanner, AdPopup } from "@/components/dynamic-ads";
+import { useCatalog, useCoupons, useOrders, useAds } from "@/lib/store";
 import {
   seedFirebaseIfEmpty,
   fetchProductsFromFirestore,
@@ -24,6 +25,7 @@ import {
   subscribeToCoupons,
   subscribeToOrders,
   subscribeToBranding,
+  subscribeToAds,
   logTrafficEvent,
 } from "@/lib/firebase";
 
@@ -131,6 +133,7 @@ function RootComponent() {
   const setBranding = useCatalog((s) => s.setBranding);
   const setCouponsRaw = useCoupons((s) => s.setCouponsRaw);
   const setOrdersRaw = useOrders((s) => s.setOrdersRaw);
+  const setAdsRaw = useAds((s) => s.setAdsRaw);
 
   useEffect(() => {
     logTrafficEvent(pathname);
@@ -142,6 +145,7 @@ function RootComponent() {
     let unsubCoupons: (() => void) | undefined;
     let unsubOrders: (() => void) | undefined;
     let unsubBranding: (() => void) | undefined;
+    let unsubAds: (() => void) | undefined;
 
     async function initFirebase() {
       try {
@@ -178,6 +182,12 @@ function RootComponent() {
             setBranding(branding);
           }
         });
+
+        unsubAds = subscribeToAds((ads) => {
+          if (ads) {
+            setAdsRaw(ads);
+          }
+        });
       } catch (err) {
         console.error("Firebase load/sync error:", err);
       }
@@ -191,17 +201,20 @@ function RootComponent() {
       if (unsubCoupons) unsubCoupons();
       if (unsubOrders) unsubOrders();
       if (unsubBranding) unsubBranding();
+      if (unsubAds) unsubAds();
     };
-  }, [setProductsRaw, setZonesRaw, setBranding, setCouponsRaw, setOrdersRaw]);
+  }, [setProductsRaw, setZonesRaw, setBranding, setCouponsRaw, setOrdersRaw, setAdsRaw]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex flex-col bg-canvas text-ink">
+        {!isAdmin && <AdTopBanner />}
         {!isAdmin && <SiteHeader />}
         <main className="flex-1">
           <Outlet />
         </main>
         {!hideChrome && <SiteFooter />}
+        {!isAdmin && <AdPopup />}
       </div>
       <Toaster position="top-center" />
     </QueryClientProvider>

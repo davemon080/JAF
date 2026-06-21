@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { z } from "zod";
-import { useCatalog } from "@/lib/store";
+import { useCatalog, useAds } from "@/lib/store";
 import { ProductCard } from "@/components/product-card";
+import { AdCardInfeed, injectFeedAds } from "@/components/dynamic-ads";
 import { CATEGORY_LABELS, type Category } from "@/data/products";
 import { Search } from "lucide-react";
 
@@ -38,6 +39,7 @@ function ShopPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const products = useCatalog((s) => s.products);
+  const ads = useAds((s) => s.ads);
   const [q, setQ] = useState(search.q ?? "");
 
   const filtered = useMemo(() => {
@@ -54,6 +56,10 @@ function ShopPage() {
     else if (search.sort === "price-desc") list = [...list].sort((a, b) => b.price - a.price);
     return list;
   }, [products, search]);
+
+  const itemsWithAds = useMemo(() => {
+    return injectFeedAds(filtered, ads, 4);
+  }, [filtered, ads]);
 
   type ShopSearch = z.infer<typeof shopSearchSchema>;
   const setSearch = (patch: Partial<ShopSearch>) =>
@@ -165,9 +171,12 @@ function ShopPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              {filtered.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
+              {itemsWithAds.map((item, index) => {
+                if (item.isAdCardUnit) {
+                  return <AdCardInfeed key={`ad-${item.adData.id}-${index}`} ad={item.adData} />;
+                }
+                return <ProductCard key={item.id} product={item} />;
+              })}
             </div>
           )}
         </div>

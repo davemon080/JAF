@@ -7,11 +7,14 @@ import {
   useCatalog,
   useCoupons,
   useOrders,
+  useAds,
   type Coupon,
   type Order,
 } from "@/lib/store";
+import { type Ad } from "@/lib/firebase";
 import { type Product, SEED_PRODUCTS, CATEGORY_LABELS, type Category } from "@/data/products";
 import { SafeImage } from "@/components/safe-image";
+import { AdsTab } from "@/components/admin-ads-tab";
 import { formatNaira } from "@/lib/format";
 import { type DeliveryZone } from "@/data/zones";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -54,6 +57,7 @@ const TABS = [
   "messages",
   "coupons",
   "zones",
+  "ads",
   "traffic",
   "settings",
 ] as const;
@@ -208,6 +212,7 @@ function AdminShell() {
         {tab === "messages" && <MessagesTab />}
         {tab === "coupons" && <CouponsTab />}
         {tab === "zones" && <ZonesTab />}
+        {tab === "ads" && <AdsTab />}
         {tab === "traffic" && <TrafficTab />}
         {tab === "settings" && <SettingsTab />}
       </main>
@@ -504,6 +509,7 @@ function ProductsTab() {
     stock: 10,
     description: "",
     reviews: [],
+    createdAt: new Date().toISOString(),
   });
 
   return (

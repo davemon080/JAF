@@ -121,12 +121,46 @@ export default {
           const image = (product && product.images && product.images[0]) || "https://iili.io/CxhVz4j.jpg";
           const redirectUrl = `/product/${slugStr}`;
 
+          const schemaJson = {
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            "name": product ? product.name : "Streetwear Clothing",
+            "image": product && product.images ? product.images : [image],
+            "description": descRaw,
+            "sku": product ? product.id : "jaf-streetwear",
+            "mpn": product ? product.id : "jaf-streetwear",
+            "brand": {
+              "@type": "Brand",
+              "name": "JAF"
+            },
+            "category": product ? product.category : "clothing",
+            "offers": {
+              "@type": "Offer",
+              "url": `https://justafriend.com.ng/product/${slugStr}`,
+              "priceCurrency": "NGN",
+              "price": product ? product.price : 20000,
+              "priceValidUntil": "2027-12-31",
+              "itemCondition": "https://schema.org/NewCondition",
+              "availability": product && product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+              "seller": {
+                "@type": "Organization",
+                "name": "JAF — Just A Friend"
+              }
+            }
+          };
+
           const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>${title}</title>
   <meta name="description" content="${desc}" />
+  <meta name="keywords" content="clothes, hoodies, caps, shirts, streetwear, JAF streetwear, Abuja fashion, Lafia shop, heavyweight tees, situationship streetwear, JAF clothing, Nigerian streetwear" />
+
+  <!-- Google Rich Snippets / Structured Data -->
+  <script type="application/ld+json">
+    ${JSON.stringify(schemaJson)}
+  </script>
 
   <!-- Open Graph / Facebook / WhatsApp -->
   <meta property="og:site_name" content="JAF" />
@@ -177,7 +211,7 @@ export default {
           const products = await fetchProductsFromFirestore();
 
           let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://justafriend.com.ng/</loc>
     <changefreq>daily</changefreq>
@@ -212,11 +246,20 @@ export default {
           if (Array.isArray(products)) {
             products.forEach((p) => {
               if (p && p.slug) {
+                const imgLoc = p.images && p.images[0] ? p.images[0] : "https://iili.io/CxhVz4j.jpg";
+                const pTitleClean = p.name ? p.name.replace(/[<>&'"]/g, "") : "Streetwear";
+                const pSubClean = p.subtitle ? p.subtitle.replace(/[<>&'"]/g, "") : "JAF";
+                const pDescClean = p.description ? p.description.replace(/[<>&'"]/g, "").slice(0, 200) : "JAF Streetwear clothing, hoodies, caps, shirts";
                 xml += `
   <url>
     <loc>https://justafriend.com.ng/product/${p.slug}</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>${imgLoc}</image:loc>
+      <image:title>${pTitleClean} - ${pSubClean}</image:title>
+      <image:caption>${pDescClean}</image:caption>
+    </image:image>
   </url>`;
               }
             });

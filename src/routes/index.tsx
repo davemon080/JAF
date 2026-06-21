@@ -1,7 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCatalog } from "@/lib/store";
+import { useCatalog, useOrders, useAds } from "@/lib/store";
 import { ProductCard } from "@/components/product-card";
+import { AdCardInfeed, injectFeedAds } from "@/components/dynamic-ads";
 import { ArrowRight } from "lucide-react";
+import { getProductSmartTag } from "@/data/products";
+import { FeaturedSlider } from "@/components/featured-slider";
 
 const catTees = "https://iili.io/CzvuCUF.jpg";
 const catHoodies = "https://iili.io/CzvuxRa.jpg";
@@ -30,8 +33,19 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const products = useCatalog((s) => s.products);
-  const featured = products.filter((p) => p.tag !== "sold-out").slice(0, 4);
-  const justIn = products.filter((p) => p.tag === "just-in" || p.tag === "limited").slice(0, 4);
+  const orders = useOrders((s) => s.orders);
+  const ads = useAds((s) => s.ads);
+
+  const featured = products.filter((p) => getProductSmartTag(p, orders) !== "sold-out").slice(0, 4);
+
+  const justIn = products
+    .filter((p) => {
+      const t = getProductSmartTag(p, orders);
+      return t === "just-in" || t === "limited";
+    })
+    .slice(0, 4);
+
+  const justInWithAds = injectFeedAds(justIn, ads, 2);
 
   return (
     <div>
@@ -77,6 +91,9 @@ function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* FEATURED SLIDE */}
+      <FeaturedSlider products={products} />
 
       {/* FEATURED DROP */}
       <section className="bg-ink text-canvas py-20">
@@ -127,9 +144,12 @@ function HomePage() {
               </Link>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-              {justIn.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
+              {justInWithAds.map((item, index) => {
+                if (item.isAdCardUnit) {
+                  return <AdCardInfeed key={`ad-${item.adData.id}-${index}`} ad={item.adData} />;
+                }
+                return <ProductCard key={item.id} product={item} />;
+              })}
             </div>
           </div>
         </section>

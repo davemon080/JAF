@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { type Product } from "@/data/products";
+import { type Product, getProductSmartTag } from "@/data/products";
 import { formatNaira } from "@/lib/format";
 import { SafeImage } from "@/components/safe-image";
+import { useOrders } from "@/lib/store";
 
 const TAG_LABEL: Record<NonNullable<Product["tag"]>, string> = {
   "new-drop": "NEW DROP",
@@ -14,6 +15,9 @@ const TAG_LABEL: Record<NonNullable<Product["tag"]>, string> = {
 export function ProductCard({ product, dark = false }: { product: Product; dark?: boolean }) {
   const surface = dark ? "bg-ink text-canvas" : "bg-canvas text-ink";
   const muted = dark ? "text-canvas/60" : "text-ink-soft";
+  const orders = useOrders((s) => s.orders);
+  const tag = getProductSmartTag(product, orders);
+
   return (
     <Link
       to="/product/$slug"
@@ -42,17 +46,17 @@ export function ProductCard({ product, dark = false }: { product: Product; dark?
             className="w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
           />
         )}
-        {product.tag && (
+        {tag && (
           <span
             className={`absolute top-3 left-3 text-[9px] font-medium tracking-widest uppercase px-2 py-1 ${
-              product.tag === "sold-out"
+              tag === "sold-out"
                 ? "bg-ink-soft text-canvas"
-                : product.tag === "just-in" || product.tag === "limited"
+                : tag === "just-in" || tag === "limited"
                   ? "bg-gold text-ink"
                   : "bg-canvas text-ink"
             }`}
           >
-            {TAG_LABEL[product.tag]}
+            {TAG_LABEL[tag]}
           </span>
         )}
       </div>

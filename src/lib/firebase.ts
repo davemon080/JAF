@@ -12,7 +12,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
-import { SEED_PRODUCTS, type Product } from "@/data/products";
+import { SEED_PRODUCTS, type Product, type Ad } from "@/data/products";
 import { DEFAULT_ZONES, type DeliveryZone } from "@/data/zones";
 import logoAsset from "@/assets/jaf-logo.asset.json";
 
@@ -295,6 +295,53 @@ export async function saveBrandingToFirestore(branding: {
   }
 }
 
+// ------ Ads Helpers ------
+export interface Ad {
+  id: string;
+  title: string;
+  subtitle?: string;
+  format: "banner" | "popup" | "card";
+  imageUrl?: string;
+  linkUrl?: string;
+  badge?: string;
+  active: boolean;
+  expiryDate: string;
+  createdAt: string;
+  bgColor?: string;
+  textColor?: string;
+}
+
+export async function fetchAdsFromFirestore(): Promise<Ad[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, "ads"));
+    const ads: Ad[] = [];
+    querySnapshot.forEach((docSnap) => {
+      ads.push(docSnap.data() as Ad);
+    });
+    return ads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, "ads");
+    return [];
+  }
+}
+
+export async function saveAdToFirestore(ad: Ad): Promise<void> {
+  try {
+    const docRef = doc(db, "ads", ad.id);
+    await setDoc(docRef, cleanUndefined(ad));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `ads/${ad.id}`);
+  }
+}
+
+export async function deleteAdFromFirestore(adId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, "ads", adId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `ads/${adId}`);
+  }
+}
+
 export async function recordUserInFirestore(
   uid: string,
   email: string,
@@ -523,6 +570,44 @@ export async function seedFirebaseIfEmpty() {
         { merge: true },
       );
     }
+
+    const adsSnapshot = await getDocs(collection(db, "ads"));
+    if (adsSnapshot.empty) {
+      console.log("Seeding default ads to Firestore...");
+      const defaultAds: Ad[] = [
+        {
+          id: "ad1",
+          title: "ABUJA POP-UP SHOP",
+          subtitle: "Get 15% off with code WUSE2 at the physical site",
+          format: "banner",
+          imageUrl: "https://iili.io/CxhVz4j.jpg",
+          linkUrl: "/shop",
+          badge: "EVENT",
+          active: true,
+          expiryDate: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          bgColor: "bg-gold text-ink",
+          textColor: "text-ink",
+        },
+        {
+          id: "ad2",
+          title: "THE SITUATIONSHIP SERIES",
+          subtitle: "Heavyweight Cotton Dropping Next Friday",
+          format: "card",
+          imageUrl: "https://iili.io/CzvuCUF.jpg",
+          linkUrl: "/shop",
+          badge: "UPCOMING DROP",
+          active: true,
+          expiryDate: new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          bgColor: "bg-ink text-canvas",
+          textColor: "text-canvas",
+        },
+      ];
+      for (const ad of defaultAds) {
+        await setDoc(doc(db, "ads", ad.id), cleanUndefined(ad));
+      }
+    }
   } catch (error) {
     console.error("Failed to seed Firebase database:", error);
   }
@@ -683,6 +768,25 @@ export function subscribeToBranding(
       if (snapshot.exists()) {
         callback(snapshot.data() as { logoUrl: string; logoShape: "circle" | "square" });
       }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    },
+  );
+}
+
+export function subscribeToAds(callback: (ads: Ad[]) => void) {
+  const path = "ads";
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const ads: Ad[] = [];
+      snapshot.forEach((docSnap) => {
+        ads.push(docSnap.data() as Ad);
+      });
+      // Sort ads by createdAt descending
+      ads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      callback(ads);
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);

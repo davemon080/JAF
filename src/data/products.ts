@@ -47,6 +47,22 @@ export interface Product {
   tag?: ProductTag;
   description: string;
   reviews: Review[];
+  createdAt?: string;
+}
+
+export interface Ad {
+  id: string;
+  title: string;
+  subtitle?: string;
+  format: "banner" | "popup" | "card";
+  imageUrl?: string;
+  linkUrl?: string;
+  badge?: string;
+  active: boolean;
+  expiryDate: string;
+  createdAt: string;
+  bgColor?: string;
+  textColor?: string;
 }
 
 const STANDARD_SIZES = ["S", "M", "L", "XL", "XXL"];
@@ -63,7 +79,8 @@ export const SEED_PRODUCTS: Product[] = [
     sizes: STANDARD_SIZES,
     colors: ["Jet Black", "Off-White"],
     stock: 24,
-    tag: "new-drop",
+    tag: "just-in",
+    createdAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
     description:
       '260gsm boxy fit tee. Drop shoulder, ribbed crew, garment-washed for a broken-in hand. Printed front: "JUST A FRIEND."',
     reviews: [
@@ -92,7 +109,8 @@ export const SEED_PRODUCTS: Product[] = [
     sizes: STANDARD_SIZES,
     colors: ["Off-White", "Jet Black"],
     stock: 31,
-    tag: "best-seller",
+    tag: "new-drop",
+    createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
     description: "The cream colorway. Same 260gsm cut, pigment-washed for that lived-in look.",
     reviews: [{ name: "Ifeanyi O.", rating: 5, body: "Cleanest fit I own.", date: "2025-03-22" }],
   },
@@ -106,7 +124,7 @@ export const SEED_PRODUCTS: Product[] = [
     images: [pLsCharcoal, pTeeBlack],
     sizes: STANDARD_SIZES,
     colors: ["Washed Charcoal"],
-    stock: 12,
+    stock: 2,
     tag: "limited",
     description: "Boxy long sleeve in pigment-dyed charcoal. Extended hem, ribbed cuffs.",
     reviews: [
@@ -421,3 +439,56 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   caps: "CAPS",
   sets: "SETS",
 };
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export function getProductSmartTag(
+  product: { id: string; stock: number; createdAt?: string; tag?: string },
+  orders: any[] = [],
+): "sold-out" | "limited" | "best-seller" | "just-in" | "new-drop" | undefined {
+  // 1. Sold Out is highest priority
+  if (product.stock === 0) {
+    return "sold-out";
+  }
+
+  // 2. Limited is next priority
+  if (product.stock > 0 && product.stock <= 3) {
+    return "limited";
+  }
+
+  // 3. Best Seller
+  // Calculate total units sold
+  const soldQty = orders
+    .flatMap((o) => o?.items || [])
+    .filter((item) => item?.productId === product.id)
+    .reduce((sum, item) => sum + (item?.qty || 0), 0);
+
+  if (soldQty >= 3) {
+    return "best-seller";
+  }
+
+  // 4. Just In / New Drop based on createdAt
+  if (product.createdAt) {
+    const createdDate = new Date(product.createdAt);
+    if (!isNaN(createdDate.getTime())) {
+      const ageMs = Date.now() - createdDate.getTime();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const oneWeekMs = 7 * oneDayMs;
+
+      if (ageMs > 0) {
+        if (ageMs <= oneDayMs) {
+          return "just-in";
+        }
+        if (ageMs <= oneWeekMs) {
+          return "new-drop";
+        }
+      }
+    }
+  }
+
+  // Fallback to pre-existing static tag or undefined
+  if (product.tag) {
+    return product.tag as any;
+  }
+
+  return undefined;
+}

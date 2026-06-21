@@ -12,6 +12,9 @@ import {
   saveOrderToFirestore,
   deleteOrderFromFirestore,
   saveBrandingToFirestore,
+  type Ad,
+  saveAdToFirestore,
+  deleteAdFromFirestore,
 } from "./firebase";
 
 // ---------- Cart ----------
@@ -277,5 +280,39 @@ export const useAdmin = create<AdminState>()(
       setAuthed: (authed) => set({ authed }),
     }),
     { name: "jaf-admin" },
+  ),
+);
+
+// ---------- Ads State ----------
+interface AdsState {
+  ads: Ad[];
+  upsert: (ad: Ad) => void;
+  remove: (id: string) => void;
+  setAdsRaw: (ads: Ad[]) => void;
+}
+
+export const useAds = create<AdsState>()(
+  persist(
+    (set) => ({
+      ads: [],
+      upsert: (ad) => {
+        set((s) => {
+          const idx = s.ads.findIndex((x) => x.id === ad.id);
+          if (idx >= 0) {
+            const copy = [...s.ads];
+            copy[idx] = ad;
+            return { ads: copy };
+          }
+          return { ads: [ad, ...s.ads] };
+        });
+        saveAdToFirestore(ad).catch((err) => console.error("Firestore sync error:", err));
+      },
+      remove: (id) => {
+        set((s) => ({ ads: s.ads.filter((ad) => ad.id !== id) }));
+        deleteAdFromFirestore(id).catch((err) => console.error("Firestore sync error:", err));
+      },
+      setAdsRaw: (ads) => set({ ads }),
+    }),
+    { name: "jaf-ads" },
   ),
 );
