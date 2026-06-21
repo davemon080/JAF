@@ -84,6 +84,36 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  head: () => ({
+    meta: [
+      { title: "JAF — Just A Friend" },
+      {
+        name: "description",
+        content:
+          "Rock JAF. Know your status. Streetwear for the situationship era — shipping across Abuja & Lafia.",
+      },
+      { name: "author", content: "JAF" },
+      { property: "og:site_name", content: "JAF" },
+      { property: "og:type", content: "website" },
+      { property: "og:title", content: "JAF — Just A Friend" },
+      {
+        property: "og:description",
+        content:
+          "Rock JAF. Know your status. Streetwear for the situationship era — shipping across Abuja & Lafia.",
+      },
+      { property: "og:image", content: "https://iili.io/CxhVz4j.jpg" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "1200" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "JAF — Just A Friend" },
+      {
+        name: "twitter:description",
+        content:
+          "Rock JAF. Know your status. Streetwear for the situationship era — shipping across Abuja & Lafia.",
+      },
+      { name: "twitter:image", content: "https://iili.io/CxhVz4j.jpg" },
+    ],
+  }),
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
