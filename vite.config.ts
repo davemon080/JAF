@@ -8,8 +8,8 @@ import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig({
-  plugins: [
+export default defineConfig(async ({ command, mode }) => {
+  const plugins = [
     TanStackRouterVite({
       routesDirectory: "./src/routes",
       generatedRouteTree: "./src/routeTree.gen.ts",
@@ -17,15 +17,31 @@ export default defineConfig({
     react(),
     tailwindcss(),
     tsconfigPaths(),
-  ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+  ];
+
+  // Enable Nitro plugin only during build to generate correct Vercel serverless deployment configurations (preventing 404 on refresh)
+  if (command === "build" || process.env.NODE_ENV === "production") {
+    try {
+      const nitroMod = await import("nitro/vite");
+      if (nitroMod && nitroMod.nitro) {
+        plugins.push(nitroMod.nitro({}));
+      }
+    } catch (err) {
+      console.warn("Could not load nitro/vite plugin:", err);
+    }
+  }
+
+  return {
+    plugins,
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-  server: {
-    port: 3000,
-    host: "0.0.0.0",
-    strictPort: true,
-  },
+    server: {
+      port: 3000,
+      host: "0.0.0.0",
+      strictPort: true,
+    },
+  };
 });
