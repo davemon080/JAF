@@ -76,12 +76,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const image = (product && product.images && product.images[0]) || "https://iili.io/CxhVz4j.jpg";
   const redirectUrl = `/product/${slugStr}`;
 
+  const schemaJson = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    name: product ? product.name : "Streetwear Clothing",
+    image: product && product.images ? product.images : [image],
+    description: descRaw,
+    sku: product ? product.id : "jaf-streetwear",
+    mpn: product ? product.id : "jaf-streetwear",
+    brand: {
+      "@type": "Brand",
+      name: "JAF",
+    },
+    category: product ? product.category : "clothing",
+    offers: {
+      "@type": "Offer",
+      url: `https://justafriend.com.ng/product/${slugStr}`,
+      priceCurrency: "NGN",
+      price: product ? product.price : 20000,
+      priceValidUntil: "2027-12-31",
+      itemCondition: "https://schema.org/NewCondition",
+      availability:
+        product && product.stock > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+      seller: {
+        "@type": "Organization",
+        name: "JAF — Just A Friend",
+      },
+    },
+  };
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>${title}</title>
   <meta name="description" content="${desc}" />
+  <meta name="keywords" content="clothes, hoodies, caps, shirts, streetwear, JAF streetwear, Abuja fashion, Lafia shop, heavyweight tees, situationship streetwear, JAF clothing, Nigerian streetwear" />
+
+  <!-- Google Rich Snippets / Structured Data -->
+  <script type="application/ld+json">
+    ${JSON.stringify(schemaJson)}
+  </script>
 
   <!-- Open Graph / Facebook / WhatsApp -->
   <meta property="og:site_name" content="JAF" />

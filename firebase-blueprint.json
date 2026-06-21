@@ -131,6 +131,24 @@
         "referrer": { "type": "string" }
       },
       "required": ["id", "path", "timestamp", "sessionId", "device", "browser"]
+    },
+    "Ad": {
+      "title": "Ad",
+      "description": "Custom promotional advert or banner run by the admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["banner", "popup", "card"] },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "linkUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" }
+      },
+      "required": ["id", "type", "title", "status", "startDate", "endDate"]
     }
   },
   "firestore": {
@@ -165,6 +183,10 @@
     "traffic_events": {
       "schema": "TrafficEvent",
       "description": "Visitor logs measuring routing hits, distinct devices, and traffic origins over time."
+    },
+    "ads": {
+      "schema": "Ad",
+      "description": "List of custom publisher/Google-style promotional ads running on the site."
     }
   }
 }
