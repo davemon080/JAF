@@ -9,17 +9,28 @@ import { auth, fetchProductsFromFirestore } from "@/lib/firebase";
 import { SafeImage } from "@/components/safe-image";
 
 export const Route = createFileRoute("/product/$slug")({
-  loader: async ({ params }) => {
+  loader: async ({ params, request }) => {
+    let origin = "https://justafriend.com.ng";
+    if (typeof window !== "undefined") {
+      origin = window.location.origin;
+    } else if (request && request.url) {
+      try {
+        origin = new URL(request.url).origin;
+      } catch (err) {
+        // Fallback to default domain if parsing fails
+      }
+    }
     try {
       const products = await fetchProductsFromFirestore();
-      const product = products.find((p) => p.slug === params.slug);
-      return { product };
+      const product = products.find((p) => p.slug === params.slug || p.id === params.slug);
+      return { product, origin };
     } catch {
-      return { product: undefined };
+      return { product: undefined, origin };
     }
   },
   head: ({ loaderData, params }) => {
     const product = loaderData?.product;
+    const origin = loaderData?.origin || "https://justafriend.com.ng";
     const title = product
       ? `${product.name} — JAF`
       : `${params.slug.replace(/-/g, " ").toUpperCase()} — JAF`;
@@ -27,6 +38,7 @@ export const Route = createFileRoute("/product/$slug")({
       ? `${product.subtitle || product.name}: ${product.description}`
       : `Shop the ${params.slug.replace(/-/g, " ")} from JAF. Heavyweight construction, shipping across Abuja & Lafia.`;
     const image = product && product.images && product.images[0] ? product.images[0] : "";
+    const productIdOrSlug = product?.id || params.slug;
 
     const metaArray = [
       { title },
@@ -34,7 +46,7 @@ export const Route = createFileRoute("/product/$slug")({
       { property: "og:title", content: title },
       { property: "og:description", content: desc },
       { property: "og:type", content: "product" },
-      { property: "og:url", content: `https://justafriend.com.ng/product/${params.slug}` },
+      { property: "og:url", content: `${origin}/product/${productIdOrSlug}` },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: desc },
     ];
@@ -47,7 +59,7 @@ export const Route = createFileRoute("/product/$slug")({
 
     return {
       meta: metaArray,
-      links: [{ rel: "canonical", href: `https://justafriend.com.ng/product/${params.slug}` }],
+      links: [{ rel: "canonical", href: `${origin}/product/${productIdOrSlug}` }],
     };
   },
   component: ProductPage,
@@ -59,7 +71,7 @@ function ProductPage() {
   const products = useCatalog((s) => s.products);
 
   // Find product from store, fall back to preloaded data during initial sync to avoid premature 404
-  const product = products.find((p) => p.slug === slug) || loaderData?.product;
+  const product = products.find((p) => p.slug === slug || p.id === slug) || loaderData?.product;
 
   if (!product) throw notFound();
 
@@ -73,7 +85,11 @@ function ProductPage() {
   const [activeImg, setActiveImg] = useState(0);
 
   const [copied, setCopied] = useState(false);
-  const shareUrl = `https://justafriend.com.ng/product/${product.slug}`;
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : loaderData?.origin || "https://justafriend.com.ng";
+  const shareUrl = `${origin}/product/${product.id}`;
 
   const handleCopyLink = () => {
     navigator.clipboard
