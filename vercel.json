@@ -1,5 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
-  "buildCommand": "npm run build:vercel"
+  "buildCommand": "npm run build:vercel",
+  "functions": {
+    "api/product.ts": {
+      "includeFiles": "dist/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/product/:slug",
+      "destination": "/api/product?slug=:slug"
+    },
+    {
+      "source": "/product/:slug/",
+      "destination": "/api/product?slug=:slug"
+    }
+  ]
 }
