@@ -10,10 +10,24 @@
   "rewrites": [
     {
       "source": "/product/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i)(facebookexternalhit|twitterbot|whatsapp|telegrambot|slackbot|discord|linkedinbot|embedly|googlebot|bingbot|applebot)"
+        }
+      ],
       "destination": "/api/product?slug=:slug"
     },
     {
       "source": "/product/:slug/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i)(facebookexternalhit|twitterbot|whatsapp|telegrambot|slackbot|discord|linkedinbot|embedly|googlebot|bingbot|applebot)"
+        }
+      ],
       "destination": "/api/product?slug=:slug"
     }
   ]
