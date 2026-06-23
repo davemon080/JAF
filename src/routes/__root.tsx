@@ -6,7 +6,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -27,6 +27,8 @@ import {
   subscribeToBranding,
   subscribeToAds,
   logTrafficEvent,
+  auth,
+  type CustomUser,
 } from "@/lib/firebase";
 
 function NotFoundComponent() {
@@ -130,16 +132,31 @@ function RootComponent() {
 
   const setProductsRaw = useCatalog((s) => s.setProductsRaw);
   const setZonesRaw = useCatalog((s) => s.setZonesRaw);
-  const setBranding = useCatalog((s) => s.setBranding);
+  const setBrandingRaw = useCatalog((s) => s.setBrandingRaw);
   const setCouponsRaw = useCoupons((s) => s.setCouponsRaw);
   const setOrdersRaw = useOrders((s) => s.setOrdersRaw);
   const setAdsRaw = useAds((s) => s.setAdsRaw);
+
+  const [user, setUser] = useState<CustomUser | null>(null);
+  const [initialized, setInitialized] = useState(auth.initialized);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+      setUser(u);
+      setInitialized(auth.initialized);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     logTrafficEvent(pathname);
   }, [pathname]);
 
   useEffect(() => {
+    if (!initialized) {
+      return;
+    }
+    let active = true;
     let unsubProducts: (() => void) | undefined;
     let unsubZones: (() => void) | undefined;
     let unsubCoupons: (() => void) | undefined;
@@ -150,44 +167,79 @@ function RootComponent() {
     async function initFirebase() {
       try {
         // 1. Seed database with defaults if it is completely empty
+        if (!active) return;
         await seedFirebaseIfEmpty();
+        if (!active) return;
 
         // 2. Set up real-time listener subscriptions
-        unsubProducts = subscribeToProducts((products) => {
-          if (products && products.length > 0) {
+        const up = subscribeToProducts((products) => {
+          if (active && products && products.length > 0) {
             setProductsRaw(products);
           }
         });
+        if (!active) {
+          up();
+        } else {
+          unsubProducts = up;
+        }
 
-        unsubZones = subscribeToZones((zones) => {
-          if (zones && zones.length > 0) {
+        const uz = subscribeToZones((zones) => {
+          if (active && zones && zones.length > 0) {
             setZonesRaw(zones);
           }
         });
+        if (!active) {
+          uz();
+        } else {
+          unsubZones = uz;
+        }
 
-        unsubCoupons = subscribeToCoupons((coupons) => {
-          if (coupons && coupons.length > 0) {
+        const uc = subscribeToCoupons((coupons) => {
+          if (active && coupons && coupons.length > 0) {
             setCouponsRaw(coupons);
           }
         });
+        if (!active) {
+          uc();
+        } else {
+          unsubCoupons = uc;
+        }
 
-        unsubOrders = subscribeToOrders((orders) => {
-          if (orders) {
-            setOrdersRaw(orders);
+        // Only subscribe to orders if there is an active session
+        if (auth.currentUser) {
+          const uo = subscribeToOrders((orders) => {
+            if (active && orders) {
+              setOrdersRaw(orders);
+            }
+          });
+          if (!active) {
+            uo();
+          } else {
+            unsubOrders = uo;
+          }
+        }
+
+        const ub = subscribeToBranding((branding) => {
+          if (active && branding) {
+            setBrandingRaw(branding);
           }
         });
+        if (!active) {
+          ub();
+        } else {
+          unsubBranding = ub;
+        }
 
-        unsubBranding = subscribeToBranding((branding) => {
-          if (branding) {
-            setBranding(branding);
-          }
-        });
-
-        unsubAds = subscribeToAds((ads) => {
-          if (ads) {
+        const ua = subscribeToAds((ads) => {
+          if (active && ads) {
             setAdsRaw(ads);
           }
         });
+        if (!active) {
+          ua();
+        } else {
+          unsubAds = ua;
+        }
       } catch (err) {
         console.error("Firebase load/sync error:", err);
       }
@@ -196,6 +248,7 @@ function RootComponent() {
     initFirebase();
 
     return () => {
+      active = false;
       if (unsubProducts) unsubProducts();
       if (unsubZones) unsubZones();
       if (unsubCoupons) unsubCoupons();
@@ -203,7 +256,16 @@ function RootComponent() {
       if (unsubBranding) unsubBranding();
       if (unsubAds) unsubAds();
     };
-  }, [setProductsRaw, setZonesRaw, setBranding, setCouponsRaw, setOrdersRaw, setAdsRaw]);
+  }, [
+    user,
+    initialized,
+    setProductsRaw,
+    setZonesRaw,
+    setBrandingRaw,
+    setCouponsRaw,
+    setOrdersRaw,
+    setAdsRaw,
+  ]);
 
   return (
     <QueryClientProvider client={queryClient}>

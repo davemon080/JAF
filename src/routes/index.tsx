@@ -148,7 +148,8 @@ function HomePage() {
                 if (item.isAdCardUnit) {
                   return <AdCardInfeed key={`ad-${item.adData.id}-${index}`} ad={item.adData} />;
                 }
-                return <ProductCard key={item.id} product={item} />;
+                const key = item.id ? `prod-${item.id}-${index}` : `prod-idx-${index}`;
+                return <ProductCard key={key} product={item} />;
               })}
             </div>
           </div>

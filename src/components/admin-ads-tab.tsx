@@ -154,6 +154,7 @@ export function AdsTab() {
     }
 
     const selectedPreset = COLOR_PRESETS[colorPresetIndex];
+    const existingAd = editingId ? ads.find((a) => a.id === editingId) : null;
 
     const adData: Ad = {
       id: editingId || `ad_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -165,9 +166,10 @@ export function AdsTab() {
       badge: badge.trim() || undefined,
       active,
       expiryDate: calculateExpiryDate(durationDays),
-      createdAt: new Date().toISOString(),
+      createdAt: existingAd ? existingAd.createdAt : new Date().toISOString(),
       bgColor: selectedPreset.bg,
       textColor: selectedPreset.text,
+      clicks: existingAd ? existingAd.clicks || 0 : 0,
     };
 
     upsert(adData);
@@ -262,11 +264,15 @@ export function AdsTab() {
                     }}
                     className="w-full bg-transparent border border-gold/40 text-gold px-3 py-2.5 text-sm outline-none focus:border-gold font-sans"
                   >
-                    <option value="" className="bg-canvas text-ink">
+                    <option key="default" value="" className="bg-canvas text-ink">
                       -- Select a Product to Autofill --
                     </option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id} className="bg-canvas text-ink">
+                    {products.map((p, idx) => (
+                      <option
+                        key={p.id || `prod-${idx}`}
+                        value={p.id || ""}
+                        className="bg-canvas text-ink"
+                      >
                         {p.name}
                       </option>
                     ))}
@@ -313,9 +319,15 @@ export function AdsTab() {
                   onChange={(e) => setFormat(e.target.value as "banner" | "popup" | "card")}
                   className="w-full bg-transparent border border-ink/20 px-3 py-2.5 text-sm outline-none focus:border-ink"
                 >
-                  <option value="banner">Wide Header Banner Strip</option>
-                  <option value="popup">Interactive Modal Popup</option>
-                  <option value="card">Native Grid Product Card</option>
+                  <option key="banner" value="banner">
+                    Wide Header Banner Strip
+                  </option>
+                  <option key="popup" value="popup">
+                    Interactive Modal Popup
+                  </option>
+                  <option key="card" value="card">
+                    Native Grid Product Card
+                  </option>
                 </select>
               </div>
 
@@ -381,11 +393,21 @@ export function AdsTab() {
                   onChange={(e) => setLinkUrl(e.target.value)}
                   className="w-full bg-transparent border border-ink/20 px-3 py-2.5 text-sm outline-none focus:border-ink"
                 >
-                  <option value="/shop">Shop Catalogue (/shop)</option>
-                  <option value="/shop?category=tees">Tees category filter</option>
-                  <option value="/shop?category=hoodies">Hoodies category filter</option>
-                  <option value="/wishlist">Wishlist page (/wishlist)</option>
-                  <option value="/admin">Admin internal console</option>
+                  <option key="shop" value="/shop">
+                    Shop Catalogue (/shop)
+                  </option>
+                  <option key="tees" value="/shop?category=tees">
+                    Tees category filter
+                  </option>
+                  <option key="hoodies" value="/shop?category=hoodies">
+                    Hoodies category filter
+                  </option>
+                  <option key="wishlist" value="/wishlist">
+                    Wishlist page (/wishlist)
+                  </option>
+                  <option key="admin" value="/admin">
+                    Admin internal console
+                  </option>
                 </select>
               </div>
 
@@ -642,6 +664,7 @@ export function AdsTab() {
                 <tr>
                   <th className="p-4">Unit Name / Badge</th>
                   <th className="p-4">Format Style</th>
+                  <th className="p-4 text-center">Clicks</th>
                   <th className="p-4">Target Goal</th>
                   <th className="p-4">Time remaining</th>
                   <th className="p-4">Aesthetic style</th>
@@ -674,6 +697,11 @@ export function AdsTab() {
                       <td className="p-4">
                         <span className="capitalize font-mono text-[10px] bg-ink/5 px-2 py-0.5">
                           {ad.format}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="font-mono text-xs font-bold text-gold border border-gold/20 bg-gold/5 px-2.5 py-1">
+                          {ad.clicks || 0}
                         </span>
                       </td>
                       <td className="p-4">

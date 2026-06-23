@@ -63,6 +63,7 @@ export interface Ad {
   createdAt: string;
   bgColor?: string;
   textColor?: string;
+  clicks?: number;
 }
 
 const STANDARD_SIZES = ["S", "M", "L", "XL", "XXL"];

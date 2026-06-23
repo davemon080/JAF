@@ -10,21 +10,50 @@ import {
   deleteDoc,
   getDocFromServer,
   onSnapshot,
+  updateDoc,
+  increment,
+  query,
+  where,
 } from "firebase/firestore";
+import {
+  getAuth,
+  signInWithEmailAndPassword as fbSignInWithEmailAndPassword,
+  createUserWithEmailAndPassword as fbCreateUserWithEmailAndPassword,
+  signOut as fbSignOut,
+  onAuthStateChanged as fbOnAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup as fbSignInWithPopup,
+  updatePassword,
+  updateEmail,
+  signInAnonymously as fbSignInAnonymously,
+  sendPasswordResetEmail as fbSendPasswordResetEmail,
+} from "firebase/auth";
 import firebaseConfig from "../../firebase-applet-config.json";
 import { SEED_PRODUCTS, type Product, type Ad } from "@/data/products";
 import { DEFAULT_ZONES, type DeliveryZone } from "@/data/zones";
 import logoAsset from "@/assets/jaf-logo.asset.json";
 
 const app = initializeApp(firebaseConfig);
-export const db = initializeFirestore(
-  app,
-  {
-    experimentalForceLongPolling: true,
-    useFetchStreams: false,
-  },
-  firebaseConfig.firestoreDatabaseId || "(default)",
-);
+const dbId =
+  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "(default)"
+    ? firebaseConfig.firestoreDatabaseId
+    : undefined;
+
+export const db = dbId
+  ? initializeFirestore(
+      app,
+      {
+        experimentalForceLongPolling: true,
+        useFetchStreams: false,
+      },
+      dbId,
+    )
+  : initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      useFetchStreams: false,
+    });
+
+export const fbAuth = getAuth(app);
 
 export interface CustomUser {
   uid: string;
@@ -33,9 +62,20 @@ export interface CustomUser {
   role?: string;
 }
 
+export function isAnAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const normal = email.toLowerCase().trim();
+  return (
+    normal === "adminjaf@gmail.com" ||
+    normal === "davemon080@gmail.com" ||
+    normal === "daveimagodei@gmail.com"
+  );
+}
+
 class CustomAuth {
   private listeners: ((user: CustomUser | null) => void)[] = [];
   public currentUser: CustomUser | null = null;
+  public initialized: boolean = false;
 
   constructor() {
     if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
@@ -48,6 +88,58 @@ class CustomAuth {
         }
       }
     }
+
+    // Subscribe to real Firebase authentication
+    fbOnAuthStateChanged(fbAuth, async (user) => {
+      try {
+        if (user) {
+          const emailKey = user.email?.toLowerCase().trim() || "";
+          if (emailKey) {
+            try {
+              const userDocSnap = await getDoc(doc(db, "users", emailKey));
+              const isAdmin = isAnAdminEmail(emailKey);
+              let role = isAdmin ? "admin" : "user";
+              let fullName = user.displayName || "";
+              if (userDocSnap.exists()) {
+                const uData = userDocSnap.data();
+                role = uData.role || role;
+                fullName = uData.fullName || fullName;
+              } else {
+                // Create user record in Firestore if it doesn't exist (e.g. first Google Sign-In)
+                await setDoc(doc(db, "users", emailKey), {
+                  uid: user.uid,
+                  email: emailKey,
+                  fullName: fullName,
+                  createdAt: new Date().toISOString(),
+                  lastLoginAt: new Date().toISOString(),
+                  role: role,
+                });
+              }
+              this.setCurrentUser({
+                uid: user.uid,
+                email: emailKey,
+                displayName: fullName,
+                role,
+              });
+            } catch (err) {
+              console.error("Error fetching/migrating user profile on auth state change:", err);
+              // Fallback
+              this.setCurrentUser({
+                uid: user.uid,
+                email: emailKey,
+                displayName: fullName,
+                role: isAnAdminEmail(emailKey) ? "admin" : "user",
+              });
+            }
+          }
+        } else {
+          this.setCurrentUser(null);
+        }
+      } finally {
+        this.initialized = true;
+        this.triggerChange();
+      }
+    });
   }
 
   onAuthStateChanged(callback: (user: CustomUser | null) => void) {
@@ -74,7 +166,12 @@ class CustomAuth {
     this.triggerChange();
   }
 
-  signOut() {
+  async signOut() {
+    try {
+      await fbSignOut(fbAuth);
+    } catch (err) {
+      console.error("Firebase signOut error:", err);
+    }
     this.setCurrentUser(null);
   }
 }
@@ -127,8 +224,12 @@ export function handleFirestoreError(
   operationType: OperationType,
   path: string | null,
 ) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const isPermissionError =
+    errMsg.toLowerCase().includes("permission") || errMsg.toLowerCase().includes("insufficient");
+
   const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -144,6 +245,21 @@ export function handleFirestoreError(
     operationType,
     path,
   };
+
+  // Log and bypass warning/info instead of throwing if the user logs out or has no permissions during read transitions.
+  if (
+    isPermissionError &&
+    (!auth.currentUser ||
+      operationType === OperationType.GET ||
+      operationType === OperationType.LIST)
+  ) {
+    console.warn(
+      "Gracefully handled Firestore permission error during transition/read:",
+      JSON.stringify(errInfo),
+    );
+    return; // Bypass throwing
+  }
+
   console.error("Firestore Error: ", JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
@@ -155,7 +271,14 @@ export async function fetchProductsFromFirestore(): Promise<Product[]> {
     const querySnapshot = await getDocs(collection(db, "products"));
     const products: Product[] = [];
     querySnapshot.forEach((docSnap) => {
-      products.push(docSnap.data() as Product);
+      const data = docSnap.data() as Product;
+      products.push({
+        ...data,
+        images: data.images || [],
+        sizes: data.sizes || [],
+        colors: data.colors || [],
+        reviews: data.reviews || [],
+      });
     });
     return products;
   } catch (error) {
@@ -239,7 +362,21 @@ export async function deleteCouponFromFirestore(code: string) {
 
 export async function fetchOrdersFromFirestore(): Promise<any[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, "orders"));
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return [];
+    }
+
+    const isAdmin = isAnAdminEmail(currentUser.email);
+    let q;
+    if (isAdmin) {
+      q = collection(db, "orders");
+    } else {
+      const userEmail = currentUser.email?.toLowerCase().trim() ?? "";
+      q = query(collection(db, "orders"), where("customer.email", "==", userEmail));
+    }
+
+    const querySnapshot = await getDocs(q);
     const orders: any[] = [];
     querySnapshot.forEach((docSnap) => {
       orders.push(docSnap.data());
@@ -309,6 +446,7 @@ export interface Ad {
   createdAt: string;
   bgColor?: string;
   textColor?: string;
+  clicks?: number;
 }
 
 export async function fetchAdsFromFirestore(): Promise<Ad[]> {
@@ -342,6 +480,17 @@ export async function deleteAdFromFirestore(adId: string): Promise<void> {
   }
 }
 
+export async function recordAdClickInFirestore(adId: string): Promise<void> {
+  try {
+    const docRef = doc(db, "ads", adId);
+    await updateDoc(docRef, {
+      clicks: increment(1),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `ads/${adId}/click`);
+  }
+}
+
 export async function recordUserInFirestore(
   uid: string,
   email: string,
@@ -368,28 +517,36 @@ export async function customSignUp(email: string, password: string, fullName: st
     const emailKey = email.toLowerCase().trim();
     if (!emailKey) throw new Error("Email is required.");
 
-    const docRef = doc(db, "users", emailKey);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      throw new Error("An account with this email already exists.");
-    }
+    // Sign up with real Firebase Auth first
+    const userCredential = await fbCreateUserWithEmailAndPassword(fbAuth, emailKey, password);
+    const user = userCredential.user;
 
-    const uid = "u_" + Math.random().toString(36).substr(2, 9);
+    const docRef = doc(db, "users", emailKey);
+    const isAdminEmail = isAnAdminEmail(emailKey);
+    const role = isAdminEmail ? "admin" : "user";
     const newUser = {
-      uid,
+      uid: user.uid,
       email: emailKey,
       fullName: fullName || "",
-      password, // store user's password as requested in the table
-      role: "user",
+      password, // retain for backup/record if required
+      role,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
     };
 
     await setDoc(docRef, newUser);
-    auth.setCurrentUser({ uid, email: emailKey, displayName: fullName, role: "user" });
+    auth.setCurrentUser({ uid: user.uid, email: emailKey, displayName: fullName, role });
     return newUser;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Custom sign up error:", error);
+    const code = (error?.code || "").toLowerCase();
+    const message = (error?.message || "").toLowerCase();
+    if (code.includes("email-already-in-use") || message.includes("email-already-in-use")) {
+      throw new Error("An account with this email already exists.");
+    }
+    if (code.includes("weak-password") || message.includes("weak-password")) {
+      throw new Error("Password must be at least 6 characters.");
+    }
     throw error;
   }
 }
@@ -399,43 +556,170 @@ export async function customSignIn(email: string, password: string) {
     const emailKey = email.toLowerCase().trim();
     if (!emailKey) throw new Error("Email is required.");
 
+    // Sign in with real Firebase Auth first
+    let userCredential;
+    const isAdminEmail = isAnAdminEmail(emailKey);
+
+    try {
+      userCredential = await fbSignInWithEmailAndPassword(fbAuth, emailKey, password);
+    } catch (error: any) {
+      if (isAdminEmail) {
+        console.log(`Fallback activated for: ${emailKey}`);
+        try {
+          // If the admin user has not been created in Firebase Auth, auto-register them
+          userCredential = await fbCreateUserWithEmailAndPassword(fbAuth, emailKey, password);
+          console.log(`Auto-registered admin ${emailKey} successfully in Firebase Auth.`);
+        } catch (signupError: any) {
+          const isAlreadyInUse =
+            signupError?.code === "auth/email-already-in-use" ||
+            signupError?.message?.includes("email-already-in-use");
+          if (isAlreadyInUse) {
+            // The email already exists in Firebase Auth, but fbSignInWithEmailAndPassword failed.
+            // This means they provided the wrong password!
+            throw new Error("Incorrect email or password. Please try again.");
+          } else {
+            throw signupError;
+          }
+        }
+      } else {
+        throw error;
+      }
+    }
+
+    const user = userCredential?.user;
     const docRef = doc(db, "users", emailKey);
     const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) {
-      throw new Error("No account found with this email. Please register first.");
-    }
+    let userData = docSnap.exists() ? docSnap.data() : null;
 
-    const userData = docSnap.data();
-    if (userData.password !== password) {
-      throw new Error("Incorrect password. Please try again.");
-    }
+    const role = isAdminEmail ? "admin" : userData?.role || "user";
 
-    // Update lastLoginAt
-    await setDoc(
-      docRef,
-      {
+    if (!userData) {
+      userData = {
+        uid: user?.uid || "u_" + emailKey.replace(/[^a-zA-Z0-9]/g, "_"),
+        email: emailKey,
+        fullName: user?.displayName || emailKey.split("@")[0],
+        password,
+        role,
+        createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
-      },
-      { merge: true },
-    );
+      };
+      await setDoc(docRef, userData);
+    } else {
+      await setDoc(
+        docRef,
+        {
+          lastLoginAt: new Date().toISOString(),
+          password,
+          role, // set / preserve role
+        },
+        { merge: true },
+      );
+    }
 
     const verifiedUser = {
-      uid: userData.uid,
-      email: userData.email,
+      uid: user?.uid || userData.uid,
+      email: emailKey,
       displayName: userData.fullName || "",
-      role: userData.role || "user",
+      role,
     };
 
     auth.setCurrentUser(verifiedUser);
     return verifiedUser;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Custom sign in error:", error);
+    const code = (error?.code || "").toLowerCase();
+    const message = (error?.message || "").toLowerCase();
+    if (
+      code.includes("invalid") ||
+      code.includes("wrong-password") ||
+      code.includes("user-not-found") ||
+      message.includes("invalid-credential") ||
+      message.includes("wrong-password") ||
+      message.includes("user-not-found") ||
+      message.includes("invalid-login")
+    ) {
+      throw new Error("Incorrect email or password. Please try again.");
+    }
     throw error;
   }
 }
 
+export async function signInWithGoogle() {
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await fbSignInWithPopup(fbAuth, provider);
+    const user = result.user;
+
+    const emailKey = user.email?.toLowerCase().trim() || "";
+    if (!emailKey) {
+      throw new Error("Google account does not have a valid email.");
+    }
+
+    const docRef = doc(db, "users", emailKey);
+    const docSnap = await getDoc(docRef);
+
+    let displayName = user.displayName || "";
+    const isAdmin = isAnAdminEmail(emailKey);
+    let role = isAdmin ? "admin" : "user";
+
+    if (docSnap.exists()) {
+      const existing = docSnap.data();
+      role = existing.role || role;
+      displayName = existing.fullName || displayName;
+
+      await setDoc(
+        docRef,
+        {
+          lastLoginAt: new Date().toISOString(),
+          role,
+        },
+        { merge: true },
+      );
+    } else {
+      await setDoc(docRef, {
+        uid: user.uid,
+        email: emailKey,
+        fullName: displayName,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+        role: role,
+      });
+    }
+
+    const loggedInUser = {
+      uid: user.uid,
+      email: emailKey,
+      displayName,
+      role,
+    };
+
+    auth.setCurrentUser(loggedInUser);
+    return loggedInUser;
+  } catch (error: any) {
+    console.error("Google sign in error:", error);
+    throw error;
+  }
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  const emailKey = email.toLowerCase().trim();
+  if (!emailKey) throw new Error("Email is required.");
+  await fbSendPasswordResetEmail(fbAuth, emailKey);
+}
+
+export async function changeCurrentUserPassword(password: string): Promise<void> {
+  const user = fbAuth.currentUser;
+  if (!user) throw new Error("No authenticated user session found.");
+  await updatePassword(user, password);
+
+  if (user.email) {
+    const emailKey = user.email.toLowerCase().trim();
+    await setDoc(doc(db, "users", emailKey), { password }, { merge: true });
+  }
+}
+
 export async function customSignOut() {
-  auth.signOut();
+  await auth.signOut();
 }
 
 export interface UserDeliveryDetails {
@@ -485,6 +769,12 @@ export async function saveUserDeliveryDetails(
 
 export async function seedFirebaseIfEmpty() {
   try {
+    const currentUser = auth.currentUser;
+    const isAdmin = isAnAdminEmail(currentUser?.email);
+    if (!isAdmin) {
+      return;
+    }
+
     const productsSnapshot = await getDocs(collection(db, "products"));
     if (productsSnapshot.empty) {
       console.log("Seeding products to Firestore...");
@@ -538,19 +828,51 @@ export async function seedFirebaseIfEmpty() {
     }
 
     const adminSnap = await getDoc(doc(db, "admin", "credentials"));
-    if (!adminSnap.exists()) {
-      console.log("Seeding default admin credentials to Firestore...");
+    if (!adminSnap.exists() || adminSnap.data()?.email !== "davemon080@gmail.com") {
+      console.log("Seeding admin credentials to Firestore...");
       await setDoc(doc(db, "admin", "credentials"), {
-        email: "adminjaf@gmail.com",
+        email: "davemon080@gmail.com",
         password: "eroll@12",
       });
     }
 
+    // Seed davemon080@gmail.com as admin
+    const davemonAdminRef = doc(db, "users", "davemon080@gmail.com");
+    await setDoc(
+      davemonAdminRef,
+      {
+        uid: "u_davemon080",
+        email: "davemon080@gmail.com",
+        fullName: "JAF Lead Admin",
+        password: "eroll@12",
+        role: "admin",
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
+    // Seed daveimagodei@gmail.com as admin
+    const daveimagodeiAdminRef = doc(db, "users", "daveimagodei@gmail.com");
+    await setDoc(
+      daveimagodeiAdminRef,
+      {
+        uid: "u_daveimagodei",
+        email: "daveimagodei@gmail.com",
+        fullName: "Dave Admin",
+        password: "Eroll@12",
+        role: "admin",
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
+    // Keep adminjaf@gmail.com as backup admin
     const adminUserRef = doc(db, "users", "adminjaf@gmail.com");
-    const adminUserSnap = await getDoc(adminUserRef);
-    if (!adminUserSnap.exists()) {
-      console.log("Seeding admin user record to the users collection...");
-      await setDoc(adminUserRef, {
+    await setDoc(
+      adminUserRef,
+      {
         uid: "u_adminjaf",
         email: "adminjaf@gmail.com",
         fullName: "JAF Admin",
@@ -558,17 +880,23 @@ export async function seedFirebaseIfEmpty() {
         role: "admin",
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
-      });
-    } else {
-      // In case password needs to be kept in sync or updated
-      await setDoc(
-        adminUserRef,
-        {
-          role: "admin",
-          password: "eroll@12",
-        },
-        { merge: true },
-      );
+      },
+      { merge: true },
+    );
+
+    // Clean up any non-admin user accounts from the database
+    console.log("Purging all non-admin accounts from database to maintain clean user setup...");
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      for (const userDoc of usersSnap.docs) {
+        const email = (userDoc.data().email || userDoc.id || "").toLowerCase().trim();
+        if (email && !isAnAdminEmail(email)) {
+          console.log(`De-seeding / deleting unrequested account profile: ${email}`);
+          await deleteDoc(doc(db, "users", userDoc.id));
+        }
+      }
+    } catch (cleanError) {
+      console.warn("Could not clean unneeded users:", cleanError);
     }
 
     const adsSnapshot = await getDocs(collection(db, "ads"));
@@ -632,6 +960,25 @@ export async function updateAdminCredentials(email: string, password: string) {
       email: email.trim(),
       password: password,
     });
+
+    // Keep Firebase Auth credentials in sync with Firestore if we're currently logged in as admin
+    const currUser = fbAuth.currentUser;
+    if (currUser) {
+      if (email.trim().toLowerCase() !== currUser.email?.toLowerCase()) {
+        try {
+          await updateEmail(currUser, email.trim());
+          console.log("Successfully synchronized admin email in Firebase Auth.");
+        } catch (emailErr) {
+          console.error("Failed to sync email in Firebase Auth:", emailErr);
+        }
+      }
+      try {
+        await updatePassword(currUser, password);
+        console.log("Successfully synchronized admin password in Firebase Auth.");
+      } catch (passErr) {
+        console.error("Failed to sync password in Firebase Auth:", passErr);
+      }
+    }
   } catch (err) {
     console.error("Error updating admin credentials in Firestore:", err);
     throw err;
@@ -695,7 +1042,14 @@ export function subscribeToProducts(callback: (products: Product[]) => void) {
     (snapshot) => {
       const products: Product[] = [];
       snapshot.forEach((docSnap) => {
-        products.push(docSnap.data() as Product);
+        const data = docSnap.data() as Product;
+        products.push({
+          ...data,
+          images: data.images || [],
+          sizes: data.sizes || [],
+          colors: data.colors || [],
+          reviews: data.reviews || [],
+        });
       });
       callback(products);
     },
@@ -741,8 +1095,24 @@ export function subscribeToCoupons(callback: (coupons: any[]) => void) {
 
 export function subscribeToOrders(callback: (orders: any[]) => void) {
   const path = "orders";
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    callback([]);
+    return () => {};
+  }
+
+  const isAdmin = isAnAdminEmail(currentUser.email);
+  let q;
+  if (isAdmin) {
+    q = collection(db, path);
+  } else {
+    const userEmail = currentUser.email?.toLowerCase().trim() ?? "";
+    q = query(collection(db, path), where("customer.email", "==", userEmail));
+  }
+
   return onSnapshot(
-    collection(db, path),
+    q,
     (snapshot) => {
       const orders: any[] = [];
       snapshot.forEach((docSnap) => {

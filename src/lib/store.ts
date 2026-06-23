@@ -195,6 +195,7 @@ interface CatalogState {
   setProductsRaw: (products: Product[]) => void;
   setZonesRaw: (zones: DeliveryZone[]) => void;
   setBranding: (branding: { logoUrl: string; logoShape: "circle" | "square" }) => void;
+  setBrandingRaw: (branding: { logoUrl: string; logoShape: "circle" | "square" }) => void;
 }
 
 export const useCatalog = create<CatalogState>()(
@@ -242,6 +243,7 @@ export const useCatalog = create<CatalogState>()(
           console.error("Firestore sync error:", err),
         );
       },
+      setBrandingRaw: (branding) => set({ branding }),
     }),
     {
       name: "jaf-catalog",

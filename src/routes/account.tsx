@@ -7,6 +7,8 @@ import {
   fetchOrdersFromFirestore,
   getUserDeliveryDetails,
   saveUserDeliveryDetails,
+  isAnAdminEmail,
+  changeCurrentUserPassword,
 } from "@/lib/firebase";
 import { useOrders, useAdmin, useCatalog } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
@@ -65,7 +67,7 @@ function AccountPage() {
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
-      if (u && (u.role === "admin" || u.email.toLowerCase().trim() === "adminjaf@gmail.com")) {
+      if (u && (u.role === "admin" || isAnAdminEmail(u.email))) {
         toast.error("Administrators cannot use a regular user's account.", { id: "admin-block" });
         navigate({ to: "/admin" });
         return;
@@ -86,6 +88,42 @@ function AccountPage() {
     address: "",
     notes: "",
   });
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      toast.error("Please enter a new password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setUpdatingPassword(true);
+      await changeCurrentUserPassword(newPassword.trim());
+      toast.success("Your password has been changed successfully.");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      console.error("Change password error:", err);
+      toast.error(
+        err.message ||
+          "Failed to update password. You may need to sign out and log back in to renew your credentials.",
+      );
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
   const zones = useCatalog((s) => s.zones);
 
@@ -423,6 +461,57 @@ function AccountPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Security Section (Change Password) */}
+        <div className="border border-ink/10 bg-card p-6 md:p-8 space-y-6">
+          <div className="flex items-center justify-between border-b border-ink/10 pb-4">
+            <h2 className="font-display text-lg font-semibold tracking-tight uppercase flex items-center gap-2">
+              <span className="size-2 rounded-full bg-gold" />
+              Security Settings
+            </h2>
+          </div>
+
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-xl">
+            <p className="text-xs text-ink-soft">
+              Update your account password below. Ensure it is at least 8 characters long.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase font-semibold mb-1.5 text-ink-soft">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-transparent border border-ink/10 focus:border-ink px-3 py-2 text-sm outline-none"
+                  placeholder="Minimum 8 characters"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase font-semibold mb-1.5 text-ink-soft">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-transparent border border-ink/10 focus:border-ink px-3 py-2 text-sm outline-none"
+                  placeholder="Confirm new password"
+                  required
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={updatingPassword}
+              className="bg-ink hover:bg-gold hover:text-ink text-canvas px-5 py-2.5 text-xs font-semibold tracking-widest uppercase transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {updatingPassword ? "Updating..." : "Update Password"}
+            </button>
+          </form>
         </div>
 
         {/* Orders Block */}

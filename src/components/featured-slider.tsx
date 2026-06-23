@@ -164,7 +164,7 @@ export function FeaturedSlider({ products }: FeaturedSliderProps) {
               <div className="relative aspect-[4/3] md:aspect-square w-full max-h-[350px] md:max-h-[420px] overflow-hidden order-1 md:order-2 group-hover:scale-[1.01] transition-transform duration-700">
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/50 via-transparent to-transparent z-10" />
                 <SafeImage
-                  src={currentProduct.images[0]}
+                  src={currentProduct.images?.[0] || ""}
                   alt={currentProduct.name}
                   width={800}
                   height={800}

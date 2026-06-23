@@ -3,13 +3,54 @@ import { useAds, type Ad } from "@/lib/store";
 import { Link } from "@tanstack/react-router";
 import { Megaphone, X, ArrowRight, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { recordAdClickInFirestore } from "@/lib/firebase";
 
 /**
  * Filter valid campaigns (Active, and Unexpired)
  */
-export function getActiveAds(ads: Ad[]): Ad[] {
+function getActiveAds(ads: Ad[]): Ad[] {
   const now = Date.now();
   return (ads || []).filter((ad) => ad.active && new Date(ad.expiryDate).getTime() > now);
+}
+
+interface AdLinkProps {
+  url?: string;
+  className?: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+}
+
+export function AdLink({ url, className, children, onClick }: AdLinkProps) {
+  if (!url) {
+    return (
+      <div className={className} onClick={onClick}>
+        {children}
+      </div>
+    );
+  }
+
+  const isExternal =
+    /^(https?:)?\/\//i.test(url) || url.startsWith("mailto:") || url.startsWith("tel:");
+
+  if (isExternal) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+        onClick={onClick}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link to={url as string} className={className} onClick={onClick}>
+      {children}
+    </Link>
+  );
 }
 
 /**
@@ -30,11 +71,17 @@ export function AdTopBanner() {
   return (
     <div
       id={`ad-banner-${latestBanner.id}`}
-      className={`relative w-full py-2.5 px-8 text-center text-xs tracking-wider transition-all duration-300 select-none z-50 ${
+      className={`relative w-full py-2.5 px-12 text-center text-xs tracking-wider transition-all duration-300 select-none z-50 cursor-pointer hover:opacity-95 ${
         latestBanner.bgColor || "bg-gold text-ink"
       }`}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 flex-wrap">
+      <AdLink
+        url={latestBanner.linkUrl}
+        onClick={() => {
+          recordAdClickInFirestore(latestBanner.id);
+        }}
+        className="block max-w-7xl mx-auto flex items-center justify-center gap-3 flex-wrap text-current hover:no-underline"
+      >
         {latestBanner.badge && (
           <span className="text-[8px] bg-ink text-canvas font-extrabold uppercase px-1.5 py-0.5 tracking-widest leading-none rounded-none">
             {latestBanner.badge}
@@ -50,19 +97,18 @@ export function AdTopBanner() {
         </span>
 
         {latestBanner.linkUrl && (
-          <Link
-            to={latestBanner.linkUrl as string}
-            className="inline-flex items-center gap-1 font-bold uppercase text-[9px] hover:underline hover:opacity-85"
-            activeOptions={{ exact: true }}
-          >
+          <span className="inline-flex items-center gap-1 font-bold uppercase text-[9px] hover:underline">
             Details <ArrowRight className="size-3" />
-          </Link>
+          </span>
         )}
-      </div>
+      </AdLink>
 
       <button
-        onClick={() => setDismissed(true)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-80 p-1"
+        onClick={(e) => {
+          e.stopPropagation();
+          setDismissed(true);
+        }}
+        className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-80 p-1 z-10"
         aria-label="Dismiss banner"
       >
         <X className="size-3.5 stroke-[2.5]" />
@@ -115,7 +161,7 @@ export function AdPopup() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           transition={{ type: "spring", damping: 25, stiffness: 350 }}
-          className={`border shadow-2xl p-5 select-none relative ${
+          className={`border shadow-2xl p-5 select-none relative group ${
             currentPopup.bgColor || "bg-ink text-canvas border-canvas/20"
           }`}
         >
@@ -133,39 +179,44 @@ export function AdPopup() {
             </button>
           </div>
 
-          {/* Optional banner image */}
-          {currentPopup.imageUrl && (
-            <div className="aspect-[16/7] w-full mb-3 overflow-hidden bg-black/10">
-              <img
-                src={currentPopup.imageUrl}
-                alt={currentPopup.title}
-                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500"
-              />
-            </div>
-          )}
-
-          {/* Ad copy text */}
-          <div className="space-y-1">
-            <h4 className="font-display font-semibold uppercase text-sm tracking-tight leading-snug">
-              {currentPopup.title}
-            </h4>
-            {currentPopup.subtitle && (
-              <p className="text-xs opacity-80 leading-normal font-light">
-                {currentPopup.subtitle}
-              </p>
+          <AdLink
+            url={currentPopup.linkUrl}
+            onClick={() => {
+              recordAdClickInFirestore(currentPopup.id);
+              handleClose();
+            }}
+            className="block text-current hover:no-underline cursor-pointer"
+          >
+            {/* Optional banner image */}
+            {currentPopup.imageUrl && (
+              <div className="aspect-[16/7] w-full mb-3 overflow-hidden bg-black/10">
+                <img
+                  src={currentPopup.imageUrl}
+                  alt={currentPopup.title}
+                  className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500"
+                />
+              </div>
             )}
-          </div>
 
-          {/* Call to action button */}
-          {currentPopup.linkUrl && (
-            <Link
-              to={currentPopup.linkUrl as string}
-              onClick={handleClose}
-              className="mt-4 w-full bg-canvas text-ink text-[10px] py-2.5 font-bold uppercase tracking-widest hover:bg-gold hover:text-ink transition-colors flex items-center justify-center gap-1.5"
-            >
-              Check out <ArrowRight className="size-3.5" />
-            </Link>
-          )}
+            {/* Ad copy text */}
+            <div className="space-y-1">
+              <h4 className="font-display font-semibold uppercase text-sm tracking-tight leading-snug group-hover:text-gold transition-colors">
+                {currentPopup.title}
+              </h4>
+              {currentPopup.subtitle && (
+                <p className="text-xs opacity-80 leading-normal font-light">
+                  {currentPopup.subtitle}
+                </p>
+              )}
+            </div>
+
+            {/* Call to action button */}
+            {currentPopup.linkUrl && (
+              <span className="mt-4 w-full bg-canvas text-ink text-[10px] py-2.5 font-bold uppercase tracking-widest hover:bg-gold hover:text-ink transition-colors flex items-center justify-center gap-1.5">
+                Check out <ArrowRight className="size-3.5" />
+              </span>
+            )}
+          </AdLink>
         </motion.div>
       </div>
     </AnimatePresence>
@@ -181,8 +232,12 @@ interface AdCardInfeedProps {
 
 export function AdCardInfeed({ ad }: AdCardInfeedProps) {
   return (
-    <div
-      className={`border flex flex-col justify-between h-[360px] relative transition-transform hover:scale-[1.005] duration-300 group overflow-hidden ${
+    <AdLink
+      url={ad.linkUrl}
+      onClick={() => {
+        recordAdClickInFirestore(ad.id);
+      }}
+      className={`border flex flex-col justify-between h-[360px] relative transition-transform hover:scale-[1.005] duration-300 group overflow-hidden cursor-pointer text-current hover:no-underline ${
         ad.bgColor || "bg-ink text-canvas border-canvas/10"
       }`}
     >
@@ -207,7 +262,7 @@ export function AdCardInfeed({ ad }: AdCardInfeedProps) {
       {/* Details layout */}
       <div className="p-4 flex-1 flex flex-col justify-between">
         <div className="space-y-1">
-          <h4 className="font-display font-semibold uppercase text-sm sm:text-base tracking-tight line-clamp-1">
+          <h4 className="font-display font-semibold uppercase text-sm sm:text-base tracking-tight line-clamp-1 group-hover:text-gold transition-colors">
             {ad.title}
           </h4>
           {ad.subtitle && (
@@ -222,16 +277,13 @@ export function AdCardInfeed({ ad }: AdCardInfeedProps) {
             sponsored card
           </span>
           {ad.linkUrl && (
-            <Link
-              to={ad.linkUrl as string}
-              className="inline-flex items-center gap-1 text-[9px] font-bold uppercase underline underline-offset-4 hover:opacity-80"
-            >
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase underline underline-offset-4 group-hover:opacity-80">
               Explore <ExternalLink className="size-3" />
-            </Link>
+            </span>
           )}
         </div>
       </div>
-    </div>
+    </AdLink>
   );
 }
 

@@ -26,7 +26,7 @@ export function ProductCard({ product, dark = false }: { product: Product; dark?
     >
       <div className="aspect-[4/5] relative overflow-hidden bg-zinc-200">
         <SafeImage
-          src={product.images[0]}
+          src={product.images?.[0] || ""}
           alt={product.name}
           loading="lazy"
           width={1024}
@@ -34,7 +34,7 @@ export function ProductCard({ product, dark = false }: { product: Product; dark?
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover transition-opacity duration-500 group-hover:opacity-0"
         />
-        {product.images[1] && (
+        {product.images?.[1] && (
           <SafeImage
             src={product.images[1]}
             alt={product.name + " alternate"}
