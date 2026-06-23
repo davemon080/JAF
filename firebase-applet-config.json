@@ -1,10 +1,10 @@
 {
-  "projectId": "abiding-galaxy-9cdv3",
-  "appId": "1:905812305759:web:96c5e5a6f9768f78f8b8ea",
-  "apiKey": "AIzaSyASD_7Km6A0aJuEj-mtgnmBBtZkLm5evew",
-  "authDomain": "abiding-galaxy-9cdv3.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-81b238ef-76c6-4d2b-8629-d866ad513f5b",
-  "storageBucket": "abiding-galaxy-9cdv3.firebasestorage.app",
-  "messagingSenderId": "905812305759",
-  "measurementId": ""
+  "projectId": "justafriend-5bdb3",
+  "appId": "1:859313340983:web:a25428079a27c077a475b2",
+  "apiKey": "AIzaSyC_afyWB1jtRH3KO6CSpAN7Zfy36k3TZ1Q",
+  "authDomain": "justafriend-5bdb3.firebaseapp.com",
+  "firestoreDatabaseId": "justafriend",
+  "storageBucket": "justafriend-5bdb3.firebasestorage.app",
+  "messagingSenderId": "859313340983",
+  "measurementId": "G-CWTJ1X6Q04"
 }
