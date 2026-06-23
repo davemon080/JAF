@@ -293,28 +293,32 @@ interface AdsState {
   setAdsRaw: (ads: Ad[]) => void;
 }
 
-export const useAds = create<AdsState>()(
-  persist(
-    (set) => ({
-      ads: [],
-      upsert: (ad) => {
-        set((s) => {
-          const idx = s.ads.findIndex((x) => x.id === ad.id);
-          if (idx >= 0) {
-            const copy = [...s.ads];
-            copy[idx] = ad;
-            return { ads: copy };
-          }
-          return { ads: [ad, ...s.ads] };
-        });
-        saveAdToFirestore(ad).catch((err) => console.error("Firestore sync error:", err));
-      },
-      remove: (id) => {
-        set((s) => ({ ads: s.ads.filter((ad) => ad.id !== id) }));
-        deleteAdFromFirestore(id).catch((err) => console.error("Firestore sync error:", err));
-      },
-      setAdsRaw: (ads) => set({ ads }),
-    }),
-    { name: "jaf-ads" },
-  ),
-);
+export const useAds = create<AdsState>()((set) => ({
+  ads: [],
+  upsert: (ad) => {
+    set((s) => {
+      const idx = s.ads.findIndex((x) => x.id === ad.id);
+      if (idx >= 0) {
+        const copy = [...s.ads];
+        copy[idx] = ad;
+        return { ads: copy };
+      }
+      return { ads: [ad, ...s.ads] };
+    });
+    saveAdToFirestore(ad).catch((err) => console.error("Firestore sync error:", err));
+  },
+  remove: (id) => {
+    set((s) => ({ ads: s.ads.filter((ad) => ad.id !== id) }));
+    deleteAdFromFirestore(id).catch((err) => console.error("Firestore sync error:", err));
+  },
+  setAdsRaw: (ads) => set({ ads }),
+}));
+
+// Clean up any old persisted jaf-ads from localStorage
+if (typeof window !== "undefined") {
+  try {
+    localStorage.removeItem("jaf-ads");
+  } catch (err) {
+    // Ignore storage isolation/private mode exceptions
+  }
+}
