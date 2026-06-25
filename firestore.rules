@@ -44,11 +44,11 @@ service cloud.firestore {
       allow get: if isSignedIn() && 
         request.auth.token != null && 
         'email' in request.auth.token && 
-        (resource.data.customer.email == request.auth.token.email || resource.data.customer.email.lower() == request.auth.token.email.lower());
+        (resource.data.customer.email.lower() == request.auth.token.email.lower() || resource.data.customer.email == request.auth.token.email);
       allow list: if isSignedIn() && 
         request.auth.token != null && 
         'email' in request.auth.token && 
-        (resource.data.customer.email == request.auth.token.email || resource.data.customer.email.lower() == request.auth.token.email.lower());
+        (resource.data.customer.email.lower() == request.auth.token.email.lower() || resource.data.customer.email == request.auth.token.email);
       allow create: if true; // Support guest checkout
     }
 
@@ -60,12 +60,12 @@ service cloud.firestore {
       allow read: if isSignedIn() && 
         request.auth.token != null && 
         'email' in request.auth.token && 
-        (request.auth.token.email == emailKey || request.auth.token.email.lower() == emailKey.lower());
+        (request.auth.token.email.lower() == emailKey.lower() || request.auth.token.email == emailKey);
       allow create: if true; // New profile registration
       allow update: if isSignedIn() && 
         request.auth.token != null && 
         'email' in request.auth.token && 
-        (request.auth.token.email == emailKey || request.auth.token.email.lower() == emailKey.lower()) && 
+        (request.auth.token.email.lower() == emailKey.lower() || request.auth.token.email == emailKey) && 
         (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == resource.data.role);
     }
 

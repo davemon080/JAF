@@ -32,8 +32,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // 1. Fetch live products list directly via firestore REST API
       // Since it's server-to-server and highly optimized, it is faster and doesn't load the Firebase SDK
-      const projectId = "abiding-galaxy-9cdv3";
-      const databaseId = "ai-studio-81b238ef-76c6-4d2b-8629-d866ad513f5b";
+      const projectId = "justafriend-5bdb3";
+      const databaseId = "justafriend";
       const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/products?pageSize=100`;
 
       const response = await fetch(firestoreUrl);
