@@ -45,10 +45,81 @@ function CheckoutPage() {
   const coupons = useCoupons((s) => s.coupons);
   const addOrder = useOrders((s) => s.add);
 
-  const [step, setStep] = useState(0);
-  const [contact, setContact] = useState({ name: "", email: "", phone: "" });
+  const [step, setStep] = useState(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("resume") === "true") {
+        return 2;
+      }
+      const saved = localStorage.getItem("jaf_checkout_step");
+      return saved ? parseInt(saved, 10) : 0;
+    }
+    return 0;
+  });
+  const [contact, setContact] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("jaf_checkout_contact");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.warn("Failed to parse saved contact", e);
+        }
+      }
+    }
+    return { name: "", email: "", phone: "" };
+  });
   const [user, setUser] = useState<any>(null);
   const [paying, setPaying] = useState(false);
+
+  const [delivery, setDelivery] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("jaf_checkout_delivery");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.warn("Failed to parse saved delivery", e);
+        }
+      }
+    }
+    return {
+      zoneId: "abuja" as "abuja" | "lafia",
+      address: "",
+      notes: "",
+    };
+  });
+  const [coupon, setCoupon] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("jaf_checkout_coupon");
+      return saved || "";
+    }
+    return "";
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("jaf_checkout_step", String(step));
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("jaf_checkout_contact", JSON.stringify(contact));
+    }
+  }, [contact]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("jaf_checkout_delivery", JSON.stringify(delivery));
+    }
+  }, [delivery]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("jaf_checkout_coupon", coupon);
+    }
+  }, [coupon]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (u) => {
@@ -85,12 +156,6 @@ function CheckoutPage() {
     });
     return () => unsubscribe();
   }, []);
-  const [delivery, setDelivery] = useState({
-    zoneId: "abuja" as "abuja" | "lafia",
-    address: "",
-    notes: "",
-  });
-  const [coupon, setCoupon] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const items = useMemo(
@@ -150,7 +215,7 @@ function CheckoutPage() {
       toast.error("Please create an account or sign in to place your order.");
       navigate({
         to: "/auth",
-        search: { mode: "signup", redirect: "/checkout" },
+        search: { mode: "signup", redirect: "/checkout?resume=true" },
       });
       return;
     }
@@ -226,6 +291,15 @@ function CheckoutPage() {
 
         addOrder(completedOrder as any);
         clear();
+
+        // Clear local storage progress
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("jaf_checkout_step");
+          localStorage.removeItem("jaf_checkout_contact");
+          localStorage.removeItem("jaf_checkout_delivery");
+          localStorage.removeItem("jaf_checkout_coupon");
+        }
+
         toast.success(`Payment verified & order placed successfully — ${ref}`);
         navigate({ to: "/checkout/success", search: { ref } });
         setPaying(false);

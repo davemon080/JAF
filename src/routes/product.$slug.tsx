@@ -194,8 +194,37 @@ function ProductPage() {
     toast.success(`Added to cart — ${product.name}`);
   };
 
+  const schemaJson = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    name: product.name,
+    image: product.images || [],
+    description: product.description,
+    brand: {
+      "@type": "Brand",
+      name: "JAF",
+    },
+    offers: {
+      "@type": "Offer",
+      url: `${origin}/product/${product.id}`,
+      priceCurrency: "NGN",
+      price: product.price,
+      priceValidUntil: "2027-12-31",
+      itemCondition: "https://schema.org/NewCondition",
+      availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      seller: {
+        "@type": "Organization",
+        name: "JAF — Just A Friend",
+      },
+    },
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaJson) }}
+      />
       <nav className="text-[10px] tracking-widest uppercase text-ink-soft mb-8 flex gap-2">
         <Link to="/">HOME</Link>
         <span>/</span>

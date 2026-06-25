@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import {
   auth,
@@ -55,6 +55,24 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const performRedirect = useCallback(
+    (target?: string) => {
+      const dest = target || "/";
+      if (dest.includes("?")) {
+        const [path, searchStr] = dest.split("?");
+        const urlParams = new URLSearchParams(searchStr);
+        const resumeVal = urlParams.get("resume");
+        navigate({
+          to: path as never,
+          search: resumeVal ? { resume: resumeVal } : undefined,
+        });
+      } else {
+        navigate({ to: dest as never });
+      }
+    },
+    [navigate],
+  );
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
@@ -62,13 +80,12 @@ function AuthPage() {
           useAdmin.getState().setAuthed(true);
           navigate({ to: "/admin" });
         } else {
-          const dest = redirect || "/";
-          navigate({ to: dest as "/checkout" | "/" });
+          performRedirect(redirect);
         }
       }
     });
     return () => unsubscribe();
-  }, [navigate, redirect]);
+  }, [navigate, redirect, performRedirect]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +114,7 @@ function AuthPage() {
           navigate({ to: "/admin" });
         } else {
           toast.success("Welcome back.");
-          navigate({ to: "/" });
+          performRedirect(redirect);
         }
       } else if (mode === "signup") {
         if (!name.trim()) {
@@ -105,7 +122,7 @@ function AuthPage() {
         }
         await customSignUp(email, password, name);
         toast.success("Account created. You're in.");
-        navigate({ to: "/" });
+        performRedirect(redirect);
       } else {
         await sendPasswordReset(email);
         toast.success(
@@ -133,8 +150,7 @@ function AuthPage() {
         navigate({ to: "/admin" });
       } else {
         toast.success("Welcome back.");
-        const dest = redirect || "/";
-        navigate({ to: dest as "/checkout" | "/" });
+        performRedirect(redirect);
       }
     } catch (err: unknown) {
       const errorObj = err as { code?: string };

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   useAdmin,
   useCart,
@@ -31,6 +32,25 @@ import {
   Compass,
   Laptop,
   Smartphone,
+  Folder,
+  File,
+  Search,
+  RefreshCw,
+  Copy,
+  Check,
+  ExternalLink,
+  HardDrive,
+  UploadCloud,
+  AlertTriangle,
+  Loader2,
+  LayoutDashboard,
+  ShoppingBag,
+  Package,
+  MessageSquare,
+  Ticket,
+  Megaphone,
+  Activity,
+  Settings,
 } from "lucide-react";
 import {
   getAdminCredentials,
@@ -41,6 +61,12 @@ import {
   auth,
   subscribeToTrafficEvents,
   isAnAdminEmail,
+  uploadImageToStorage,
+  migrateAllProductsToStorage,
+  listStorageFiles,
+  deleteStorageFile,
+  firebaseConfig,
+  type StorageFile,
 } from "@/lib/firebase";
 
 export const Route = createFileRoute("/admin")({
@@ -60,9 +86,24 @@ const TABS = [
   "zones",
   "ads",
   "traffic",
+  "storage",
   "settings",
 ] as const;
 type Tab = (typeof TABS)[number];
+
+const TAB_ICONS: Record<Tab, React.ComponentType<{ className?: string }>> = {
+  dashboard: LayoutDashboard,
+  products: ShoppingBag,
+  orders: Package,
+  customers: Users,
+  messages: MessageSquare,
+  coupons: Ticket,
+  zones: Globe,
+  ads: Megaphone,
+  traffic: Activity,
+  storage: HardDrive,
+  settings: Settings,
+};
 
 function AdminShell() {
   const { authed, logout, setAuthed } = useAdmin();
@@ -187,8 +228,8 @@ function AdminShell() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-canvas">
-      <aside className="lg:w-56 bg-ink text-canvas p-6 flex lg:flex-col gap-4 lg:gap-2 overflow-x-auto">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-canvas lg:h-screen lg:overflow-hidden">
+      <aside className="lg:w-56 lg:h-full bg-ink text-canvas p-6 flex lg:flex-col gap-4 lg:gap-2 overflow-x-auto lg:overflow-y-auto shrink-0">
         <div className="lg:mb-6 shrink-0">
           <Link to="/" className="font-display text-2xl font-semibold tracking-tighter">
             JAF.
@@ -197,15 +238,19 @@ function AdminShell() {
             Operations
           </p>
         </div>
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`text-left text-xs tracking-widest uppercase px-3 py-2 shrink-0 ${tab === t ? "bg-canvas text-ink" : "hover:bg-canvas/10"}`}
-          >
-            {t}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const IconComponent = TAB_ICONS[t];
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`text-left text-xs tracking-widest uppercase px-3 py-2 shrink-0 flex items-center gap-2 ${tab === t ? "bg-canvas text-ink" : "hover:bg-canvas/10"}`}
+            >
+              {IconComponent && <IconComponent className="size-3.5 flex-shrink-0" />}
+              <span>{t}</span>
+            </button>
+          );
+        })}
         <button
           onClick={() => {
             auth.signOut();
@@ -218,7 +263,7 @@ function AdminShell() {
           <LogOut className="size-3.5" /> Logout
         </button>
       </aside>
-      <main className="flex-1 p-6 md:p-10 overflow-auto">
+      <main className="flex-1 p-6 md:p-10 overflow-auto lg:h-full">
         {tab === "dashboard" && <DashboardTab />}
         {tab === "products" && <ProductsTab />}
         {tab === "orders" && <OrdersTab />}
@@ -228,6 +273,7 @@ function AdminShell() {
         {tab === "zones" && <ZonesTab />}
         {tab === "ads" && <AdsTab />}
         {tab === "traffic" && <TrafficTab />}
+        {tab === "storage" && <StorageTab />}
         {tab === "settings" && <SettingsTab />}
       </main>
     </div>
@@ -243,6 +289,7 @@ function DashboardTab() {
 
   const [messages, setMessages] = useState<any[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     fetchContactMessages()
@@ -254,6 +301,30 @@ function DashboardTab() {
   const revenue = orders.reduce((a, o) => a + o.total, 0);
   const today = new Date().toDateString();
   const todays = orders.filter((o) => new Date(o.createdAt).toDateString() === today);
+
+  // Firebase Storage bucket statistics
+  let firebaseStorageCount = 0;
+  let base64Count = 0;
+  let externalUrlCount = 0;
+  let totalImagesCount = 0;
+
+  products.forEach((p) => {
+    if (p.images && Array.isArray(p.images)) {
+      p.images.forEach((img) => {
+        totalImagesCount++;
+        if (img.startsWith("data:image")) {
+          base64Count++;
+        } else if (img.includes("firebasestorage.googleapis.com")) {
+          firebaseStorageCount++;
+        } else {
+          externalUrlCount++;
+        }
+      });
+    }
+  });
+
+  const percentMigrated =
+    totalImagesCount > 0 ? Math.round((firebaseStorageCount / totalImagesCount) * 100) : 100;
 
   // last 7 days revenue
   const days = Array.from({ length: 7 }).map((_, i) => {
@@ -452,6 +523,131 @@ function DashboardTab() {
             </div>
           </section>
 
+          {/* FIREBASE CLOUD STORAGE BUCKET PANEL */}
+          <section className="bg-card border border-ink/10 p-6 space-y-6">
+            <div>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs tracking-widest uppercase font-semibold">
+                  Firebase Cloud Storage
+                </h2>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 font-medium tracking-wide">
+                  ACTIVE
+                </span>
+              </div>
+              <p className="text-xs text-ink-soft mt-1">Media files & product image hosting</p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="font-medium">Total Images Analyzed:</span>
+                <span className="font-mono text-[11px] font-bold">{totalImagesCount} images</span>
+              </div>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-zinc-600 font-medium">Bucket Migrated:</span>
+                <span className="font-mono text-[11px] text-emerald-600 font-bold">
+                  {firebaseStorageCount} / {totalImagesCount} ({percentMigrated}%)
+                </span>
+              </div>
+
+              <div className="w-full h-1.5 bg-zinc-100 rounded-none overflow-hidden my-1">
+                <div
+                  className="h-full bg-emerald-600 transition-all duration-500"
+                  style={{ width: `${percentMigrated}%` }}
+                />
+              </div>
+
+              <div className="space-y-1 pt-2 border-t border-ink/5 text-xs text-ink-soft font-mono">
+                <div className="flex justify-between text-[10px]">
+                  <span>Bucket Hosted (Storage)</span>
+                  <span className="text-emerald-600 font-semibold">
+                    {firebaseStorageCount} files
+                  </span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span>Base64 Blobs (Local DB)</span>
+                  <span
+                    className={
+                      base64Count > 0
+                        ? "text-amber-600 font-semibold animate-pulse"
+                        : "text-zinc-400"
+                    }
+                  >
+                    {base64Count} files
+                  </span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span>External HTTP Links</span>
+                  <span className="text-zinc-400">{externalUrlCount} files</span>
+                </div>
+              </div>
+            </div>
+
+            {base64Count > 0 ? (
+              <div className="bg-amber-50 p-3 text-[11px] text-amber-900 border border-amber-200">
+                <span className="font-semibold block uppercase text-[8px] tracking-wider mb-1 text-amber-950">
+                  Base64 Images Detected ({base64Count})
+                </span>
+                <p className="leading-relaxed text-[10px]">
+                  Some products still use inline Base64 data which slows down page loads. Use the
+                  migration tool to upload them to your high-speed cloud bucket.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-emerald-50 p-3 text-[11px] text-emerald-900 border border-emerald-200">
+                <span className="font-semibold block uppercase text-[8px] tracking-wider mb-1 text-emerald-950">
+                  All Images Fully Migrated
+                </span>
+                <p className="leading-relaxed text-[10px]">
+                  All product images are successfully hosted on your Firebase Storage bucket. Pages
+                  will load incredibly fast!
+                </p>
+              </div>
+            )}
+
+            <div className="border-t border-ink/10 pt-4">
+              <button
+                onClick={async () => {
+                  const toastId = toast.loading(
+                    "Checking migration status & processing remaining images...",
+                  );
+                  try {
+                    const res = await migrateAllProductsToStorage();
+                    if (res.unauthorizedErrorDetected) {
+                      toast.error(
+                        "Firebase Storage write permission denied. Please configure Storage rules.",
+                        {
+                          id: toastId,
+                        },
+                      );
+                      setShowInstructions(true);
+                    } else if (res.failedCount > 0) {
+                      toast.success(
+                        `Migration partially complete: ${res.migratedCount} products successfully updated. ${res.failedCount} images encountered issues.`,
+                        { id: toastId },
+                      );
+                    } else if (res.migratedCount === 0) {
+                      toast.success("No new images needed migration to your storage bucket.", {
+                        id: toastId,
+                      });
+                    } else {
+                      toast.success(
+                        `Successfully migrated all ${res.migratedCount} product images to Firebase Storage bucket!`,
+                        { id: toastId },
+                      );
+                    }
+                  } catch (err: any) {
+                    toast.error(`Migration failed: ${err?.message || "Unknown error"}`, {
+                      id: toastId,
+                    });
+                  }
+                }}
+                className="w-full border border-ink text-ink hover:bg-ink hover:text-canvas py-2 text-[10px] tracking-widest uppercase transition-colors font-semibold"
+              >
+                Run Storage Migration Utility
+              </button>
+            </div>
+          </section>
+
           {/* FIREBASE PLAN & BILLING OVERVIEW */}
           <section className="bg-card border border-ink/10 p-6 space-y-6">
             <div className="flex items-center justify-between border-b border-ink/10 pb-4">
@@ -540,6 +736,11 @@ function DashboardTab() {
           </section>
         </div>
       </div>
+
+      <StorageInstructionsModal
+        isOpen={showInstructions}
+        onClose={() => setShowInstructions(false)}
+      />
     </div>
   );
 }
@@ -559,6 +760,7 @@ function ProductsTab() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showStorageInstructions, setShowStorageInstructions] = useState(false);
 
   const itemsPerPage = 30;
   const totalPages = Math.ceil(products.length / itemsPerPage);
@@ -653,6 +855,53 @@ function ProductsTab() {
             className="border border-ink/20 px-4 py-2 text-xs tracking-widest uppercase"
           >
             Reset
+          </button>
+          <button
+            onClick={() => {
+              triggerConfirm(
+                "Migrate Product Images",
+                "This will upload all current product images (including base64 strings and external URLs) to your Firebase Storage bucket, updating the URLs automatically so that everything runs incredibly fast. Continue?",
+                async () => {
+                  const toastId = toast.loading("Migrating images to Firebase Storage...");
+                  try {
+                    const res = await migrateAllProductsToStorage();
+                    if (res.unauthorizedErrorDetected) {
+                      toast.error(
+                        "Firebase Storage write permission denied. Please configure Storage rules.",
+                        {
+                          id: toastId,
+                        },
+                      );
+                      setShowStorageInstructions(true);
+                    } else if (res.failedCount > 0) {
+                      toast.success(
+                        `Migration partially complete: ${res.migratedCount} products successfully updated. ${res.failedCount} images encountered issues.`,
+                        { id: toastId },
+                      );
+                    } else if (res.migratedCount === 0) {
+                      toast.success("No new images needed migration to your storage bucket.", {
+                        id: toastId,
+                      });
+                    } else {
+                      toast.success(
+                        `Successfully migrated all ${res.migratedCount} product images to Firebase Storage bucket!`,
+                        {
+                          id: toastId,
+                        },
+                      );
+                    }
+                  } catch (err: any) {
+                    toast.error(`Migration failed: ${err?.message || "Unknown error"}`, {
+                      id: toastId,
+                    });
+                  }
+                },
+                "info",
+              );
+            }}
+            className="border border-emerald-600/30 text-emerald-600 hover:border-emerald-600 px-4 py-2 text-xs tracking-widest uppercase transition-colors font-medium"
+          >
+            Migrate to Bucket
           </button>
           <button
             onClick={() => setEditing(blank())}
@@ -840,6 +1089,7 @@ function ProductsTab() {
             setEditing(null);
             toast.success("Product saved");
           }}
+          onUnauthorized={() => setShowStorageInstructions(true)}
         />
       )}
 
@@ -851,6 +1101,11 @@ function ProductsTab() {
         onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
         variant={confirmState.variant}
       />
+
+      <StorageInstructionsModal
+        isOpen={showStorageInstructions}
+        onClose={() => setShowStorageInstructions(false)}
+      />
     </div>
   );
 }
@@ -859,10 +1114,12 @@ function ProductEditor({
   product,
   onClose,
   onSave,
+  onUnauthorized,
 }: {
   product: Product;
   onClose: () => void;
   onSave: (p: Product) => void;
+  onUnauthorized?: () => void;
 }) {
   const [p, setP] = useState<Product>({
     ...product,
@@ -881,6 +1138,8 @@ function ProductEditor({
       toast.error("Image file is too large (max 10MB).");
       return;
     }
+
+    const toastId = toast.loading(`Uploading Image ${index + 1} to Storage...`);
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -907,18 +1166,60 @@ function ProductEditor({
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75);
-          const updatedImages = [...p.images];
-          updatedImages[index] = compressedDataUrl;
-          set("images", updatedImages);
-          toast.success(`Image ${index + 1} uploaded & compressed successfully!`);
+          canvas.toBlob(
+            async (blob) => {
+              if (blob) {
+                try {
+                  const fileName = `product_${p.id || "new"}_image_${index}_${Date.now()}.jpg`;
+                  const downloadUrl = await uploadImageToStorage(blob, fileName);
+                  const updatedImages = [...p.images];
+                  updatedImages[index] = downloadUrl;
+                  set("images", updatedImages);
+                  toast.success(`Image ${index + 1} uploaded & compressed successfully!`, {
+                    id: toastId,
+                  });
+                } catch (err: any) {
+                  console.error("Storage upload failed:", err);
+                  toast.error(`Upload failed: ${err.message || "Unknown error"}`, { id: toastId });
+                  const errMsg = err?.message || String(err);
+                  if (
+                    err?.code === "storage/unauthorized" ||
+                    errMsg.toLowerCase().includes("unauthorized") ||
+                    errMsg.toLowerCase().includes("permission")
+                  ) {
+                    onUnauthorized?.();
+                  }
+                }
+              } else {
+                toast.error("Failed to compress image.", { id: toastId });
+              }
+            },
+            "image/jpeg",
+            0.75,
+          );
         } else {
-          if (typeof reader.result === "string") {
-            const updatedImages = [...p.images];
-            updatedImages[index] = reader.result;
-            set("images", updatedImages);
-            toast.success(`Image ${index + 1} uploaded successfully!`);
-          }
+          // Fallback to uploading raw file
+          (async () => {
+            try {
+              const fileName = `product_${p.id || "new"}_image_${index}_${Date.now()}_${file.name}`;
+              const downloadUrl = await uploadImageToStorage(file, fileName);
+              const updatedImages = [...p.images];
+              updatedImages[index] = downloadUrl;
+              set("images", updatedImages);
+              toast.success(`Image ${index + 1} uploaded successfully!`, { id: toastId });
+            } catch (err: any) {
+              console.error("Storage upload failed:", err);
+              toast.error(`Upload failed: ${err.message || "Unknown error"}`, { id: toastId });
+              const errMsg = err?.message || String(err);
+              if (
+                err?.code === "storage/unauthorized" ||
+                errMsg.toLowerCase().includes("unauthorized") ||
+                errMsg.toLowerCase().includes("permission")
+              ) {
+                onUnauthorized?.();
+              }
+            }
+          })();
         }
       };
       img.src = event.target?.result as string;
@@ -1657,6 +1958,7 @@ function MessagesTab() {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showConfirmDeleteMessageId, setShowConfirmDeleteMessageId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -1674,8 +1976,12 @@ function MessagesTab() {
     load();
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this message?")) return;
+  const handleDelete = (id: string) => {
+    setShowConfirmDeleteMessageId(id);
+  };
+
+  const executeDeleteMessage = async (id: string) => {
+    setShowConfirmDeleteMessageId(null);
     try {
       await deleteContactMessageFromFirestore(id);
       toast.success("Message deleted successfully.");
@@ -1771,6 +2077,50 @@ function MessagesTab() {
           ))}
         </div>
       )}
+
+      {/* Custom Message Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmDeleteMessageId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white border border-ink/10 shadow-2xl p-6 max-w-sm w-full space-y-4 rounded-none"
+            >
+              <div className="flex items-start gap-3">
+                <div className="bg-red-100 text-red-800 p-2 shrink-0">
+                  <Trash2 className="size-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-ink">
+                    Delete Message
+                  </h3>
+                  <p className="text-xs text-ink-soft leading-relaxed">
+                    Are you sure you want to delete this message? This action is permanent and
+                    cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowConfirmDeleteMessageId(null)}
+                  className="px-4 py-2 border border-ink/10 hover:bg-ink/5 font-mono text-[10px] tracking-widest uppercase transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => executeDeleteMessage(showConfirmDeleteMessageId)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-mono text-[10px] tracking-widest uppercase font-semibold transition-colors shadow-xs"
+                >
+                  Delete Permanently
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -2145,6 +2495,1039 @@ function TrafficTab() {
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+interface StorageInstructionsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function StorageInstructionsModal({ isOpen, onClose }: StorageInstructionsModalProps) {
+  if (!isOpen) return null;
+
+  const rulesString = `rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}`;
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(rulesString);
+    toast.success("Storage Rules copied to clipboard!");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-ink/40 backdrop-blur-xs" onClick={onClose} />
+
+      {/* Modal Card */}
+      <div className="relative bg-canvas border border-ink/20 w-full max-w-lg p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+        <h3 className="font-display text-lg font-semibold tracking-tight text-ink">
+          Configure Firebase Storage Bucket Security Rules
+        </h3>
+        <p className="mt-3 text-xs text-ink-soft leading-relaxed">
+          Your Firebase Storage bucket security rules are currently denying write permissions
+          (unauthorized), preventing product image uploads. Follow these steps to enable uploads:
+        </p>
+
+        <ol className="mt-4 space-y-2.5 text-xs text-ink-soft list-decimal list-inside">
+          <li>
+            Go to your{" "}
+            <a
+              href="https://console.firebase.google.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-600 hover:underline font-semibold inline-flex items-center gap-1"
+            >
+              Firebase Console ↗
+            </a>
+          </li>
+          <li>
+            Select your project, go to <strong className="text-ink">Storage</strong> from the left
+            sidebar, and click on the <strong className="text-ink">Rules</strong> tab at the top.
+          </li>
+          <li>Copy and paste the recommended security rules below:</li>
+        </ol>
+
+        <div className="mt-4 relative bg-ink/5 border border-ink/10 rounded p-3 font-mono text-[11px] leading-relaxed text-ink select-all whitespace-pre">
+          {rulesString}
+        </div>
+
+        <div className="mt-3 flex justify-between items-center">
+          <button
+            onClick={copyToClipboard}
+            className="text-xs text-emerald-600 font-semibold hover:underline flex items-center gap-1.5"
+          >
+            Copy Rules to Clipboard
+          </button>
+          <span className="text-[10px] text-ink-soft italic">Public read, authenticated write</span>
+        </div>
+
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={onClose}
+            className="bg-ink text-canvas hover:bg-ink/90 px-4 py-2 text-xs tracking-widest uppercase transition-colors font-medium"
+          >
+            I've Updated My Rules
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StorageTab() {
+  const [allFiles, setAllFiles] = useState<StorageFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [folder, setFolder] = useState<"all" | "products" | "root">("products");
+  const [viewMode, setViewMode] = useState<"all" | "duplicates">("all");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const [cleaningAll, setCleaningAll] = useState(false);
+  const [showConfirmClean, setShowConfirmClean] = useState(false);
+  const [showConfirmDeleteFile, setShowConfirmDeleteFile] = useState<StorageFile | null>(null);
+
+  // Custom manual plan override state, defaulting to Blaze as the user's project is on Blaze.
+  const [planOverride, setPlanOverride] = useState<"Spark" | "Blaze">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("firebase-plan-override") as "Spark" | "Blaze" | null;
+      return saved || "Blaze";
+    }
+    return "Blaze";
+  });
+
+  const [detectedPlan, setDetectedPlan] = useState<{
+    plan: "Spark" | "Blaze" | "Unknown";
+    billingEnabled: boolean;
+    details: string;
+    limitBytes: number;
+    loading: boolean;
+  }>({
+    plan: "Unknown",
+    billingEnabled: false,
+    details: "Detecting...",
+    limitBytes: 5 * 1024 * 1024 * 1024, // Default Spark 5GB
+    loading: true,
+  });
+
+  const fetchFiles = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [productsFiles, rootFiles] = await Promise.all([
+        listStorageFiles("products"),
+        listStorageFiles(""),
+      ]);
+      const combined = [...productsFiles, ...rootFiles];
+      const uniqueFilesMap = new Map<string, StorageFile>();
+      combined.forEach((file) => {
+        uniqueFilesMap.set(file.fullPath, file);
+      });
+      setAllFiles(Array.from(uniqueFilesMap.values()));
+    } catch (err: any) {
+      console.error("Error loading files from Firebase Storage:", err);
+      const errMsg = err?.message || String(err);
+      if (
+        err?.code === "storage/unauthorized" ||
+        errMsg.toLowerCase().includes("unauthorized") ||
+        errMsg.toLowerCase().includes("permission")
+      ) {
+        setError(
+          "Unauthorized: Access denied by security rules. Please check your Storage Rules configurations.",
+        );
+      } else {
+        setError(errMsg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
+  useEffect(() => {
+    let active = true;
+    const runDetection = async () => {
+      if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
+        if (active) {
+          setDetectedPlan({
+            plan: "Spark",
+            billingEnabled: false,
+            details:
+              "No Project ID or API Key found in configuration. Defaulting to free Spark plan.",
+            limitBytes: 5 * 1024 * 1024 * 1024,
+            loading: false,
+          });
+        }
+        return;
+      }
+      try {
+        const url = `https://cloudbilling.googleapis.com/v1/projects/${firebaseConfig.projectId}/billingInfo?key=${firebaseConfig.apiKey}`;
+        const res = await fetch(url);
+        if (!active) return;
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg =
+            errData?.error?.message || "Billing API query restricted (typical of Spark Plan)";
+          setDetectedPlan({
+            plan: "Spark",
+            billingEnabled: false,
+            details: `Spark Free Plan (Assumed) — ${errMsg}`,
+            limitBytes: 5 * 1024 * 1024 * 1024,
+            loading: false,
+          });
+          return;
+        }
+
+        const data = await res.json();
+        if (data.billingEnabled) {
+          setDetectedPlan({
+            plan: "Blaze",
+            billingEnabled: true,
+            details: `Blaze Pay-As-You-Go Plan Active (Billing Account: ${data.billingAccountName || "Standard GCP Billing Account"})`,
+            limitBytes: 10 * 1024 * 1024 * 1024 * 1024, // Blaze is virtually unlimited. Set representation to a massive 10TB.
+            loading: false,
+          });
+        } else {
+          setDetectedPlan({
+            plan: "Spark",
+            billingEnabled: false,
+            details: "Spark Free Plan Active (GCP Billing Account not associated)",
+            limitBytes: 5 * 1024 * 1024 * 1024,
+            loading: false,
+          });
+        }
+      } catch (err: any) {
+        if (!active) return;
+        setDetectedPlan({
+          plan: "Spark",
+          billingEnabled: false,
+          details: `Heuristic Spark Mode: Could not query billing info. (${err.message || String(err)})`,
+          limitBytes: 5 * 1024 * 1024 * 1024,
+          loading: false,
+        });
+      }
+    };
+    runDetection();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const file = fileList[0];
+    setUploading(true);
+    const toastId = toast.loading(`Uploading ${file.name} to Storage...`);
+
+    try {
+      const folderPrefix = folder === "products" ? "products/" : "";
+      const cleanName = `${folderPrefix}${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
+      await uploadImageToStorage(file, cleanName);
+      toast.success("File uploaded successfully!", { id: toastId });
+      fetchFiles();
+    } catch (err: any) {
+      console.error("Failed to upload file to storage:", err);
+      toast.error(`Upload failed: ${err?.message || "Unknown error"}`, { id: toastId });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = (file: StorageFile) => {
+    setShowConfirmDeleteFile(file);
+  };
+
+  const executeDeleteFile = async (file: StorageFile) => {
+    setShowConfirmDeleteFile(null);
+    const toastId = toast.loading(`Deleting ${file.name}...`);
+    try {
+      await deleteStorageFile(file.fullPath);
+      toast.success("File deleted successfully!", { id: toastId });
+      setAllFiles((prev) => prev.filter((f) => f.fullPath !== file.fullPath));
+    } catch (err: any) {
+      console.error("Failed to delete file:", err);
+      toast.error(`Delete failed: ${err?.message || "Unknown error"}`, { id: toastId });
+    }
+  };
+
+  const handleCopy = (url: string, path: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedPath(path);
+    toast.success("Download URL copied to clipboard!");
+    setTimeout(() => setCopiedPath(null), 2000);
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  // Filter files based on current folder selector
+  const filteredFiles = useMemo(() => {
+    let list = allFiles;
+    if (folder === "products") {
+      list = allFiles.filter((f) => f.fullPath.startsWith("products/"));
+    } else if (folder === "root") {
+      list = allFiles.filter((f) => !f.fullPath.includes("/"));
+    }
+    if (search) {
+      list = list.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()));
+    }
+    return list;
+  }, [allFiles, folder, search]);
+
+  // Compute duplicate image groups (grouped by hash or fallback to exact same size + extension)
+  const duplicateGroups = useMemo(() => {
+    const groups: Record<string, StorageFile[]> = {};
+    allFiles.forEach((file) => {
+      if (!file.size || !file.url) return; // skip folder markers or broken assets
+      const key = file.md5Hash || `size-${file.size}-${file.contentType}`;
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(file);
+    });
+
+    return Object.values(groups)
+      .filter((group) => group.length > 1)
+      .map((group) => {
+        // Sort by timeCreated ascending to find the oldest (original)
+        const sorted = [...group].sort((a, b) => {
+          if (!a.timeCreated) return 1;
+          if (!b.timeCreated) return -1;
+          return new Date(a.timeCreated).getTime() - new Date(b.timeCreated).getTime();
+        });
+        const isImage = sorted[0].contentType ? sorted[0].contentType.startsWith("image/") : false;
+        return {
+          hash: sorted[0].md5Hash || `size-${sorted[0].size}`,
+          original: sorted[0],
+          duplicates: sorted.slice(1),
+          all: sorted,
+          totalSize: sorted.reduce((sum, f) => sum + f.size, 0),
+          wastedSize: sorted.slice(1).reduce((sum, f) => sum + f.size, 0),
+          isImage,
+        };
+      })
+      .sort((a, b) => b.wastedSize - a.wastedSize); // Show largest duplicate files first
+  }, [allFiles]);
+
+  const totalBucketSize = useMemo(() => {
+    return allFiles.reduce((sum, f) => sum + f.size, 0);
+  }, [allFiles]);
+
+  const totalWastedSize = useMemo(() => {
+    return duplicateGroups.reduce((sum, g) => sum + g.wastedSize, 0);
+  }, [duplicateGroups]);
+
+  const BUCKET_LIMIT_BYTES =
+    planOverride === "Blaze" ? 10 * 1024 * 1024 * 1024 * 1024 : 5 * 1024 * 1024 * 1024;
+  const percentBucketUsed = parseFloat(((totalBucketSize / BUCKET_LIMIT_BYTES) * 100).toFixed(4));
+
+  const handleCleanAllDuplicates = () => {
+    setShowConfirmClean(true);
+  };
+
+  const executeCleanAllDuplicates = async () => {
+    setShowConfirmClean(false);
+    setCleaningAll(true);
+    const toastId = toast.loading("Executing duplicate auto-cleanup...");
+    let deletedCount = 0;
+    let failedCount = 0;
+    const deletedPaths = new Set<string>();
+
+    for (const group of duplicateGroups) {
+      for (const file of group.duplicates) {
+        try {
+          await deleteStorageFile(file.fullPath);
+          deletedCount++;
+          deletedPaths.add(file.fullPath);
+        } catch (err) {
+          console.error(`Failed to delete duplicate ${file.fullPath}:`, err);
+          failedCount++;
+        }
+      }
+    }
+
+    // Instantly filter out deleted files from local state to bypass replication delay & latency
+    if (deletedPaths.size > 0) {
+      setAllFiles((prev) => prev.filter((f) => !deletedPaths.has(f.fullPath)));
+    }
+
+    if (failedCount > 0) {
+      toast.success(
+        `Cleanup partially complete. Removed ${deletedCount} duplicates. ${failedCount} files failed.`,
+        { id: toastId },
+      );
+    } else {
+      toast.success(`Successfully removed all ${deletedCount} duplicate files!`, { id: toastId });
+    }
+    setCleaningAll(false);
+    fetchFiles();
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Top Title Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-ink/10 pb-5">
+        <div>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">
+            Storage Explorer
+          </h1>
+          <p className="text-xs text-ink-soft mt-1.5 font-mono">
+            Browse files, monitor total bucket capacity, and clean up duplicate images.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchFiles}
+            className="border border-ink/20 hover:border-ink px-3 py-2 text-xs tracking-widest uppercase flex items-center gap-1.5 transition-colors"
+          >
+            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <label className="bg-ink text-canvas hover:bg-ink/90 px-3 py-2 text-xs tracking-widest uppercase flex items-center gap-1.5 transition-colors cursor-pointer font-medium">
+            <UploadCloud className="size-3.5" />
+            {uploading ? "Uploading..." : "Upload File"}
+            <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
+          </label>
+        </div>
+      </div>
+
+      {/* Main Grid View */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Left Hand Sidebar Stats */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Bucket Directories */}
+          <div className="border border-ink/10 p-5 space-y-4">
+            <h3 className="text-xs tracking-widest uppercase font-semibold text-ink">
+              Bucket Directories
+            </h3>
+            <div className="space-y-1 text-xs">
+              <button
+                onClick={() => {
+                  setFolder("products");
+                  setViewMode("all");
+                }}
+                className={`w-full text-left px-3 py-2 flex items-center gap-2 font-mono ${
+                  folder === "products" && viewMode === "all"
+                    ? "bg-ink text-canvas font-semibold"
+                    : "hover:bg-ink/5 text-ink-soft"
+                }`}
+              >
+                <Folder className="size-4 shrink-0" />
+                products/
+              </button>
+              <button
+                onClick={() => {
+                  setFolder("root");
+                  setViewMode("all");
+                }}
+                className={`w-full text-left px-3 py-2 flex items-center gap-2 font-mono ${
+                  folder === "root" && viewMode === "all"
+                    ? "bg-ink text-canvas font-semibold"
+                    : "hover:bg-ink/5 text-ink-soft"
+                }`}
+              >
+                <Folder className="size-4 shrink-0" />
+                [root] /
+              </button>
+              <button
+                onClick={() => {
+                  setFolder("all");
+                  setViewMode("all");
+                }}
+                className={`w-full text-left px-3 py-2 flex items-center gap-2 font-mono ${
+                  folder === "all" && viewMode === "all"
+                    ? "bg-ink text-canvas font-semibold"
+                    : "hover:bg-ink/5 text-ink-soft"
+                }`}
+              >
+                <Folder className="size-4 shrink-0" />
+                [all directories]
+              </button>
+            </div>
+          </div>
+
+          {/* Visual Bucket Capacity Gauge */}
+          <div className="border border-ink/10 p-5 space-y-4">
+            <h3 className="text-xs tracking-widest uppercase font-semibold text-ink flex items-center gap-1.5">
+              <HardDrive className="size-3.5 text-ink-soft" />
+              Bucket Disk Usage
+            </h3>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-ink-soft">Capacity:</span>
+                <span className="font-semibold text-ink">
+                  {planOverride === "Blaze"
+                    ? "🚀 Blaze Plan (Pay-as-you-go)"
+                    : "✨ 5.00 GB (Spark Plan)"}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-ink-soft">Used:</span>
+                <span className="font-semibold text-ink">{formatSize(totalBucketSize)}</span>
+              </div>
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-ink-soft">Available:</span>
+                <span className="font-semibold text-emerald-600">
+                  {planOverride === "Blaze"
+                    ? "Unlimited"
+                    : formatSize(Math.max(0, BUCKET_LIMIT_BYTES - totalBucketSize))}
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full h-2.5 bg-zinc-100 border border-ink/5 mt-1 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    percentBucketUsed > 90
+                      ? "bg-red-500"
+                      : percentBucketUsed > 70
+                        ? "bg-amber-500"
+                        : "bg-emerald-600"
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(1, percentBucketUsed))}%` }}
+                />
+              </div>
+
+              <div className="flex justify-between text-[10px] font-mono text-ink-soft">
+                <span>{percentBucketUsed.toFixed(4)}% utilized</span>
+                <span>
+                  {planOverride === "Blaze"
+                    ? "Scale dynamic"
+                    : `${formatSize(Math.max(0, BUCKET_LIMIT_BYTES - totalBucketSize))} free`}
+                </span>
+              </div>
+
+              {/* Dynamic Firebase Plan Status Indicator */}
+              <div className="pt-2 border-t border-dashed border-ink/10">
+                {detectedPlan.loading ? (
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-ink-soft animate-pulse">
+                    <Loader2 className="size-3 animate-spin" /> Detecting plan...
+                  </div>
+                ) : (
+                  <div className="bg-ink/[0.03] border border-ink/5 p-2 rounded-none space-y-1 font-mono text-[9px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-ink-soft uppercase font-bold text-[8px] tracking-wider">
+                        Plan Status
+                      </span>
+                      <button
+                        onClick={() => {
+                          const nextPlan = planOverride === "Blaze" ? "Spark" : "Blaze";
+                          setPlanOverride(nextPlan);
+                          localStorage.setItem("firebase-plan-override", nextPlan);
+                          toast.success(`Switched storage workspace view to ${nextPlan} Plan.`);
+                        }}
+                        className={`px-1.5 py-0.5 font-bold uppercase text-[8px] rounded hover:opacity-85 transition-all flex items-center gap-1 cursor-pointer ${
+                          planOverride === "Blaze"
+                            ? "bg-purple-100 text-purple-800 border border-purple-200"
+                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}
+                        title="Click to manually toggle between Blaze and Spark plans"
+                      >
+                        {planOverride} Plan 🔄
+                      </button>
+                    </div>
+                    <p className="text-ink-soft leading-tight text-[9px] break-all">
+                      {detectedPlan.details}
+                    </p>
+                    {detectedPlan.plan !== planOverride && (
+                      <p className="text-purple-600 font-medium text-[8px] mt-1">
+                        * Manually overridden to {planOverride} Plan view.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Duplicate Media Banner */}
+          <div className="border border-ink/10 p-5 space-y-3 bg-ink/5">
+            <h3 className="text-xs tracking-widest uppercase font-semibold text-ink flex items-center gap-1.5">
+              <AlertTriangle className="size-3.5 text-amber-600 animate-pulse" />
+              Redundant Files
+            </h3>
+            <p className="text-[11px] leading-relaxed text-ink-soft font-mono">
+              Analyzing file hashes shows{" "}
+              <strong className="text-amber-700">{duplicateGroups.length} duplicate groups</strong>{" "}
+              currently taking up{" "}
+              <strong className="text-amber-700">{formatSize(totalWastedSize)}</strong> of wasted
+              Space.
+            </p>
+            {duplicateGroups.length > 0 && (
+              <button
+                onClick={() => setViewMode("duplicates")}
+                className="w-full text-center bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-900 py-1.5 text-[10px] uppercase font-mono tracking-wider font-semibold transition-colors"
+              >
+                Inspect Duplicates
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right Hand Main Area */}
+        <div className="lg:col-span-3 space-y-4">
+          {/* Section Navigation Tabs */}
+          <div className="flex border-b border-ink/10">
+            <button
+              onClick={() => setViewMode("all")}
+              className={`px-4 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 transition-colors ${
+                viewMode === "all"
+                  ? "border-ink text-ink font-bold"
+                  : "border-transparent text-ink-soft hover:text-ink"
+              }`}
+            >
+              All Files ({filteredFiles.length})
+            </button>
+            <button
+              onClick={() => setViewMode("duplicates")}
+              className={`px-4 py-2.5 text-xs font-semibold tracking-wider uppercase border-b-2 transition-colors flex items-center gap-1.5 ${
+                viewMode === "duplicates"
+                  ? "border-ink text-ink font-bold"
+                  : "border-transparent text-ink-soft hover:text-ink"
+              }`}
+            >
+              Duplicate Files ({duplicateGroups.length} groups)
+              {duplicateGroups.length > 0 && (
+                <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 font-mono font-bold animate-pulse">
+                  {duplicateGroups.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {error && (
+            <div className="border border-red-200 bg-red-50 p-4 text-xs text-red-900 flex items-start gap-2.5">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-red-600" />
+              <div>
+                <p className="font-semibold text-red-950 uppercase text-[9px] tracking-wider mb-1">
+                  Access Error
+                </p>
+                <p className="leading-relaxed">{error}</p>
+                <button
+                  onClick={() => {
+                    toast.info("Updating firebase security rules can solve unauthorized errors.");
+                  }}
+                  className="mt-2 underline font-semibold text-red-950 hover:text-red-800"
+                >
+                  How do I fix this?
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="border border-ink/10 p-16 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="size-8 animate-spin text-ink-soft" />
+              <p className="text-xs text-ink-soft font-mono">
+                Loading storage items & processing hashes...
+              </p>
+            </div>
+          ) : viewMode === "all" ? (
+            /* ALL FILES VIEW */
+            <>
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 size-4 text-ink-soft" />
+                <input
+                  type="text"
+                  placeholder="Search files inside this folder..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-canvas border border-ink/10 pl-9 pr-4 py-2 text-xs focus:border-ink/30 focus:outline-hidden"
+                />
+              </div>
+
+              {filteredFiles.length === 0 ? (
+                <div className="border border-ink/10 p-16 text-center">
+                  <File className="size-10 text-ink-soft mx-auto mb-3 stroke-1" />
+                  <p className="text-xs text-ink font-semibold">No files found</p>
+                  <p className="text-xs text-ink-soft mt-1">
+                    {search
+                      ? "No files match your search query."
+                      : `This directory "${folder}" is currently empty.`}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredFiles.map((file) => {
+                    const isImage = file.contentType.startsWith("image/");
+                    return (
+                      <div
+                        key={file.fullPath}
+                        className="group border border-ink/10 bg-card hover:border-ink/30 transition-all flex flex-col h-fit"
+                      >
+                        <div className="aspect-video w-full bg-ink/5 border-b border-ink/5 relative flex items-center justify-center overflow-hidden">
+                          {isImage && file.url ? (
+                            <img
+                              src={file.url}
+                              alt={file.name}
+                              className="object-cover w-full h-full group-hover:scale-102 transition-transform duration-300"
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <File className="size-12 text-ink-soft stroke-1" />
+                          )}
+                          <div className="absolute top-2 right-2 bg-ink/75 text-canvas text-[8px] font-mono px-1.5 py-0.5 uppercase tracking-wider rounded-xs">
+                            {file.contentType.split("/")[1] || "file"}
+                          </div>
+                        </div>
+
+                        <div className="p-4 flex-1 space-y-2">
+                          <div className="space-y-0.5">
+                            <p
+                              className="text-xs font-semibold text-ink truncate font-mono"
+                              title={file.name}
+                            >
+                              {file.name}
+                            </p>
+                            <p className="text-[10px] text-ink-soft truncate font-mono">
+                              {file.fullPath}
+                            </p>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] font-mono text-ink-soft">
+                            <span>{formatSize(file.size)}</span>
+                            <span>
+                              {file.timeCreated
+                                ? new Date(file.timeCreated).toLocaleDateString()
+                                : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-ink/10 p-2 grid grid-cols-3 gap-1">
+                          <button
+                            onClick={() => handleCopy(file.url, file.fullPath)}
+                            className="text-center py-1.5 text-[9px] font-mono hover:bg-ink/5 font-semibold text-ink-soft hover:text-ink transition-colors flex items-center justify-center gap-1 border border-ink/5"
+                            title="Copy direct download URL"
+                          >
+                            {copiedPath === file.fullPath ? (
+                              <>
+                                <Check className="size-3 text-emerald-600 animate-in zoom-in" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="size-3 text-ink-soft" />
+                                Copy Link
+                              </>
+                            )}
+                          </button>
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-center py-1.5 text-[9px] font-mono hover:bg-ink/5 font-semibold text-ink-soft hover:text-ink transition-colors flex items-center justify-center gap-1 border border-ink/5"
+                          >
+                            <ExternalLink className="size-3" />
+                            View
+                          </a>
+                          <button
+                            onClick={() => handleDelete(file)}
+                            className="text-center py-1.5 text-[9px] font-mono hover:bg-red-50 text-red-600 hover:text-red-700 font-semibold transition-colors flex items-center justify-center gap-1 border border-ink/5"
+                          >
+                            <Trash2 className="size-3" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            /* DUPLICATES MANAGER VIEW */
+            <div className="space-y-6">
+              {/* Duplicate Summary Alert */}
+              <div className="border border-amber-200 bg-amber-50 p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold font-mono uppercase text-amber-950 tracking-wider">
+                    DUPLICATE CLEANUP UTILITY
+                  </h4>
+                  <p className="text-xs text-amber-900 leading-relaxed max-w-2xl">
+                    We found{" "}
+                    <span className="font-bold">{duplicateGroups.length} distinct groups</span> of
+                    identical files. Deleting redundancy will free up{" "}
+                    <span className="font-bold text-amber-950">{formatSize(totalWastedSize)}</span>{" "}
+                    of space immediately while preserving the oldest (original) upload of each
+                    image!
+                  </p>
+                </div>
+                {duplicateGroups.length > 0 && (
+                  <button
+                    onClick={handleCleanAllDuplicates}
+                    disabled={cleaningAll}
+                    className="bg-amber-600 text-white hover:bg-amber-700 font-mono text-[10px] tracking-widest uppercase font-semibold px-4 py-2.5 shrink-0 transition-colors shadow-xs flex items-center gap-2"
+                  >
+                    {cleaningAll ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" />
+                        Cleaning...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="size-3.5" />
+                        Auto-Clean All ({formatSize(totalWastedSize)})
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {duplicateGroups.length === 0 ? (
+                <div className="border border-emerald-100 bg-emerald-50/50 p-12 text-center">
+                  <Check className="size-10 text-emerald-600 mx-auto mb-3 stroke-2 animate-bounce" />
+                  <p className="text-xs text-emerald-950 font-bold uppercase tracking-wider">
+                    No Duplicates Found!
+                  </p>
+                  <p className="text-xs text-emerald-800 mt-1">
+                    Your bucket storage is pristine. All image hashes are completely unique!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {duplicateGroups.map((group, groupIdx) => {
+                    return (
+                      <div
+                        key={group.hash || groupIdx}
+                        className="border border-ink/10 bg-card rounded-none overflow-hidden"
+                      >
+                        {/* Group Header */}
+                        <div className="bg-ink/5 border-b border-ink/10 px-4 py-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] uppercase tracking-wider">
+                              Group #{groupIdx + 1}
+                            </span>
+                            <span className="text-ink font-semibold">
+                              {group.all.length} identical copies detected
+                            </span>
+                          </div>
+                          <span className="text-amber-800 font-semibold">
+                            Redundancy wasting: {formatSize(group.wastedSize)}
+                          </span>
+                        </div>
+
+                        {/* Visual File Comparison Container */}
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Left: Original File (oldest, to keep) */}
+                          <div className="border border-emerald-200 bg-emerald-50/20 p-4 space-y-3 relative">
+                            <span className="absolute top-3 right-3 bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[8px] font-bold px-2 py-0.5 uppercase tracking-wider">
+                              ORIGINAL (KEEP)
+                            </span>
+                            <h5 className="text-[10px] font-mono font-bold tracking-widest text-emerald-900 uppercase">
+                              Primary Upload (Oldest)
+                            </h5>
+
+                            <div className="flex gap-4 items-center">
+                              <div className="size-20 bg-ink/5 border border-ink/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                {group.isImage && group.original.url ? (
+                                  <img
+                                    src={group.original.url}
+                                    alt={group.original.name}
+                                    className="object-cover w-full h-full"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <File className="size-8 text-ink-soft stroke-1" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1 font-mono text-[10px] text-ink-soft">
+                                <p
+                                  className="text-xs font-semibold text-ink truncate"
+                                  title={group.original.name}
+                                >
+                                  {group.original.name}
+                                </p>
+                                <p className="truncate" title={group.original.fullPath}>
+                                  Path: {group.original.fullPath}
+                                </p>
+                                <p>Size: {formatSize(group.original.size)}</p>
+                                <p>
+                                  Created:{" "}
+                                  {group.original.timeCreated
+                                    ? new Date(group.original.timeCreated).toLocaleString()
+                                    : "Unknown"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Duplicates (redundant, safe to delete) */}
+                          <div className="border border-amber-200 bg-amber-50/10 p-4 space-y-3">
+                            <h5 className="text-[10px] font-mono font-bold tracking-widest text-amber-900 uppercase">
+                              Redundant Copies ({group.duplicates.length})
+                            </h5>
+
+                            <div className="space-y-3 max-h-[160px] overflow-y-auto pr-1">
+                              {group.duplicates.map((dup) => (
+                                <div
+                                  key={dup.fullPath}
+                                  className="flex gap-3 items-center justify-between bg-white border border-amber-200 p-2 text-[10px] font-mono"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-ink font-semibold truncate" title={dup.name}>
+                                      {dup.name}
+                                    </p>
+                                    <p
+                                      className="text-ink-soft text-[9px] truncate"
+                                      title={dup.fullPath}
+                                    >
+                                      {dup.fullPath}
+                                    </p>
+                                    <p className="text-ink-soft text-[9px]">
+                                      Uploaded: {new Date(dup.timeCreated).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDelete(dup)}
+                                    className="border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 p-1.5 transition-colors shrink-0"
+                                    title="Delete duplicate"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Custom Confirmation Modals for StorageTab */}
+      <AnimatePresence>
+        {showConfirmClean && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white border border-ink/10 shadow-2xl p-6 max-w-md w-full space-y-4 rounded-none"
+            >
+              <div className="flex items-start gap-3">
+                <div className="bg-amber-100 text-amber-800 p-2 shrink-0">
+                  <AlertTriangle className="size-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-ink">
+                    Confirm Storage Auto-Cleanup
+                  </h3>
+                  <p className="text-xs text-ink-soft leading-relaxed">
+                    Are you sure you want to permanently delete all{" "}
+                    <span className="font-bold text-ink">
+                      {duplicateGroups.reduce((sum, g) => sum + g.duplicates.length, 0)}
+                    </span>{" "}
+                    duplicate files?
+                  </p>
+                  <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200/50 p-2.5 mt-2 font-mono leading-relaxed">
+                    This will retain the oldest version (the original) in each duplicate group and
+                    free up <span className="font-bold">{formatSize(totalWastedSize)}</span> of
+                    space immediately.
+                  </p>
+                  <p className="text-[10px] text-ink-soft italic">
+                    This action is permanent and cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowConfirmClean(false)}
+                  className="px-4 py-2 border border-ink/10 hover:bg-ink/5 font-mono text-[10px] tracking-widest uppercase transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeCleanAllDuplicates}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-mono text-[10px] tracking-widest uppercase font-semibold transition-colors shadow-xs"
+                >
+                  Yes, Clean Duplicates
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showConfirmDeleteFile && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white border border-ink/10 shadow-2xl p-6 max-w-md w-full space-y-4 rounded-none"
+            >
+              <div className="flex items-start gap-3">
+                <div className="bg-red-100 text-red-800 p-2 shrink-0">
+                  <Trash2 className="size-5" />
+                </div>
+                <div className="space-y-1 min-w-0 flex-1">
+                  <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-ink">
+                    Confirm Permanent Deletion
+                  </h3>
+                  <p className="text-xs text-ink-soft leading-relaxed">
+                    Are you sure you want to permanently delete this file from Firebase Storage?
+                  </p>
+                  <div className="bg-ink/[0.02] border border-ink/5 p-2.5 font-mono text-[10px] space-y-1 rounded-none">
+                    <p className="font-bold text-ink truncate" title={showConfirmDeleteFile.name}>
+                      Name: {showConfirmDeleteFile.name}
+                    </p>
+                    <p className="text-ink-soft truncate" title={showConfirmDeleteFile.fullPath}>
+                      Path: {showConfirmDeleteFile.fullPath}
+                    </p>
+                    <p className="text-ink-soft">Size: {formatSize(showConfirmDeleteFile.size)}</p>
+                  </div>
+                  <p className="text-[10px] text-red-600 font-bold tracking-wider uppercase">
+                    WARNING: This action is permanent and cannot be undone!
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowConfirmDeleteFile(null)}
+                  className="px-4 py-2 border border-ink/10 hover:bg-ink/5 font-mono text-[10px] tracking-widest uppercase transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => executeDeleteFile(showConfirmDeleteFile)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-mono text-[10px] tracking-widest uppercase font-semibold transition-colors shadow-xs"
+                >
+                  Delete Permanently
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

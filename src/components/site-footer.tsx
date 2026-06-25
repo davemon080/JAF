@@ -61,7 +61,7 @@ export function SiteFooter() {
               Connect
             </p>
             <a
-              href="https://instagram.com"
+              href="https://www.instagram.com/jaf_collection01?igsh=M2JoM2hjMTB3MTF6&utm_source=qr"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-medium hover:text-gold transition-colors"
@@ -77,15 +77,7 @@ export function SiteFooter() {
               TIKTOK @JAF0012
             </a>
             <a
-              href="https://x.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium hover:text-gold transition-colors"
-            >
-              TWITTER/X
-            </a>
-            <a
-              href="https://wa.me/2348000000000"
+              href="https://wa.me/2349011928339"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-medium hover:text-gold transition-colors"

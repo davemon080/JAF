@@ -28,6 +28,15 @@ import {
   signInAnonymously as fbSignInAnonymously,
   sendPasswordResetEmail as fbSendPasswordResetEmail,
 } from "firebase/auth";
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  listAll,
+  deleteObject,
+  getMetadata,
+} from "firebase/storage";
 import firebaseConfig from "../../firebase-applet-config.json";
 import { SEED_PRODUCTS, type Product, type Ad } from "@/data/products";
 import { DEFAULT_ZONES, type DeliveryZone } from "@/data/zones";
@@ -54,6 +63,7 @@ export const db = dbId
     });
 
 export const fbAuth = getAuth(app);
+export const storage = getStorage(app);
 
 export interface CustomUser {
   uid: string;
@@ -95,11 +105,11 @@ class CustomAuth {
         if (user) {
           const emailKey = user.email?.toLowerCase().trim() || "";
           if (emailKey) {
+            const isAdmin = isAnAdminEmail(emailKey);
+            let role = isAdmin ? "admin" : "user";
+            let fullName = user.displayName || "";
             try {
               const userDocSnap = await getDoc(doc(db, "users", emailKey));
-              const isAdmin = isAnAdminEmail(emailKey);
-              let role = isAdmin ? "admin" : "user";
-              let fullName = user.displayName || "";
               if (userDocSnap.exists()) {
                 const uData = userDocSnap.data();
                 role = uData.role || role;
@@ -128,7 +138,7 @@ class CustomAuth {
                 uid: user.uid,
                 email: emailKey,
                 displayName: fullName,
-                role: isAnAdminEmail(emailKey) ? "admin" : "user",
+                role: isAdmin ? "admin" : "user",
               });
             }
           }
@@ -769,6 +779,11 @@ export async function saveUserDeliveryDetails(
 
 export async function seedFirebaseIfEmpty() {
   try {
+    if (typeof window !== "undefined") {
+      if (localStorage.getItem("jaf_firebase_seeded") === "true") {
+        return;
+      }
+    }
     const currentUser = auth.currentUser;
     const isAdmin = isAnAdminEmail(currentUser?.email);
     if (!isAdmin) {
@@ -936,6 +951,10 @@ export async function seedFirebaseIfEmpty() {
         await setDoc(doc(db, "ads", ad.id), cleanUndefined(ad));
       }
     }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("jaf_firebase_seeded", "true");
+    }
+    migrateAllProductsToStorage().catch((err) => console.error("Background migration error:", err));
   } catch (error) {
     console.error("Failed to seed Firebase database:", error);
   }
@@ -1256,4 +1275,245 @@ export function subscribeToTrafficEvents(callback: (events: any[]) => void) {
       handleFirestoreError(error, OperationType.GET, path);
     },
   );
+}
+
+/**
+ * Helper to upload a base64 string or a File/Blob to Firebase Storage
+ */
+export async function uploadImageToStorage(
+  fileOrBase64: File | Blob | string,
+  fileName: string,
+): Promise<string> {
+  let blob: Blob;
+  if (typeof fileOrBase64 === "string") {
+    if (fileOrBase64.startsWith("data:")) {
+      const arr = fileOrBase64.split(",");
+      const mime = arr[0].match(/:(.*?);/)![1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      blob = new Blob([u8arr], { type: mime });
+    } else {
+      return fileOrBase64;
+    }
+  } else {
+    blob = fileOrBase64;
+  }
+
+  const storageRef = ref(storage, `products/${fileName}`);
+  const snapshot = await uploadBytes(storageRef, blob);
+  return await getDownloadURL(snapshot.ref);
+}
+
+export interface MigrationResult {
+  totalAnalyzed: number;
+  migratedCount: number;
+  failedCount: number;
+  unauthorizedErrorDetected: boolean;
+  errors: string[];
+}
+
+/**
+ * Migration routine to find any base64 images or external images and upload them to Cloud Storage
+ */
+export async function migrateAllProductsToStorage(): Promise<MigrationResult> {
+  const result: MigrationResult = {
+    totalAnalyzed: 0,
+    migratedCount: 0,
+    failedCount: 0,
+    unauthorizedErrorDetected: false,
+    errors: [],
+  };
+
+  try {
+    const productsSnapshot = await getDocs(collection(db, "products"));
+    result.totalAnalyzed = productsSnapshot.size;
+    console.log(`[Storage Migration] Found ${productsSnapshot.size} products to analyze.`);
+
+    for (const docSnap of productsSnapshot.docs) {
+      const product = docSnap.data() as Product;
+      let needsUpdate = false;
+      const updatedImages = [...(product.images || [])];
+
+      for (let i = 0; i < updatedImages.length; i++) {
+        const img = updatedImages[i];
+        if (!img) continue;
+
+        if (img.startsWith("data:")) {
+          // Base64 Data URL
+          try {
+            const ext = img.match(/data:image\/(.*?);/)?.[1] || "jpg";
+            const fileName = `${product.id}_image_${i}_${Date.now()}.${ext}`;
+            console.log(`[Storage Migration] Migrating Base64 image ${i + 1} for ${product.name}`);
+            const storageUrl = await uploadImageToStorage(img, fileName);
+            updatedImages[i] = storageUrl;
+            needsUpdate = true;
+          } catch (err: any) {
+            console.error(
+              `[Storage Migration] Failed to migrate base64 image ${i} for ${product.id}:`,
+              err,
+            );
+            result.failedCount++;
+            const errMsg = err?.message || String(err);
+            result.errors.push(`Failed to migrate image for ${product.name}: ${errMsg}`);
+            if (
+              err?.code === "storage/unauthorized" ||
+              errMsg.toLowerCase().includes("unauthorized") ||
+              errMsg.toLowerCase().includes("permission") ||
+              errMsg.toLowerCase().includes("permission-denied")
+            ) {
+              result.unauthorizedErrorDetected = true;
+            }
+          }
+        } else if (
+          (img.startsWith("http://") || img.startsWith("https://")) &&
+          !img.includes("firebasestorage.googleapis.com")
+        ) {
+          // External URL (seeding or transferring to bucket)
+          try {
+            console.log(`[Storage Migration] Migrating remote image ${img} for ${product.name}`);
+            const response = await fetch(img, { mode: "cors" });
+            if (response.ok) {
+              const blob = await response.blob();
+              const ext = blob.type.split("/")[1] || "jpg";
+              const fileName = `${product.id}_image_${i}_${Date.now()}.${ext}`;
+              const storageUrl = await uploadImageToStorage(blob, fileName);
+              updatedImages[i] = storageUrl;
+              needsUpdate = true;
+            } else {
+              console.warn(
+                `[Storage Migration] Remote image fetch failed for ${img}: status ${response.status}`,
+              );
+              result.failedCount++;
+              result.errors.push(
+                `Failed to fetch remote image for ${product.name}: status ${response.status}`,
+              );
+            }
+          } catch (err: any) {
+            console.warn(
+              `[Storage Migration] Remote image fetch failed (CORS/Network) for ${img}. Skipping but keeping original URL.`,
+              err,
+            );
+            result.failedCount++;
+            const errMsg = err?.message || String(err);
+            result.errors.push(`Failed to fetch remote image for ${product.name}: ${errMsg}`);
+            if (
+              err?.code === "storage/unauthorized" ||
+              errMsg.toLowerCase().includes("unauthorized") ||
+              errMsg.toLowerCase().includes("permission") ||
+              errMsg.toLowerCase().includes("permission-denied")
+            ) {
+              result.unauthorizedErrorDetected = true;
+            }
+          }
+        }
+      }
+
+      if (needsUpdate) {
+        await updateDoc(doc(db, "products", product.id), {
+          images: updatedImages,
+        });
+        result.migratedCount++;
+        console.log(
+          `[Storage Migration] Updated Firestore product ${product.name} with storage images.`,
+        );
+      }
+    }
+    console.log(`[Storage Migration] Completed. Migrated ${result.migratedCount} products.`);
+    return result;
+  } catch (err: any) {
+    console.error("[Storage Migration] Failed to complete product migration:", err);
+    const errMsg = err?.message || String(err);
+    if (
+      err?.code === "storage/unauthorized" ||
+      errMsg.toLowerCase().includes("unauthorized") ||
+      errMsg.toLowerCase().includes("permission") ||
+      errMsg.toLowerCase().includes("permission-denied")
+    ) {
+      result.unauthorizedErrorDetected = true;
+    }
+    result.errors.push(`Overall migration failure: ${errMsg}`);
+    return result;
+  }
+}
+
+export interface StorageFile {
+  name: string;
+  fullPath: string;
+  url: string;
+  size: number;
+  contentType: string;
+  timeCreated: string;
+  md5Hash?: string;
+}
+
+/**
+ * List files in a specified folder inside Firebase Storage
+ */
+export async function listStorageFiles(folder: string = "products"): Promise<StorageFile[]> {
+  try {
+    const folderRef = ref(storage, folder);
+    const listResult = await listAll(folderRef);
+    const files: StorageFile[] = [];
+
+    for (const itemRef of listResult.items) {
+      try {
+        const [url, metadata] = await Promise.all([getDownloadURL(itemRef), getMetadata(itemRef)]);
+        files.push({
+          name: itemRef.name,
+          fullPath: itemRef.fullPath,
+          url,
+          size: metadata.size,
+          contentType: metadata.contentType || "application/octet-stream",
+          timeCreated: metadata.timeCreated,
+          md5Hash: metadata.md5Hash,
+        });
+      } catch (err) {
+        console.error(`Failed to get details for ${itemRef.fullPath}:`, err);
+        files.push({
+          name: itemRef.name,
+          fullPath: itemRef.fullPath,
+          url: "",
+          size: 0,
+          contentType: "unknown",
+          timeCreated: "",
+        });
+      }
+    }
+
+    // Sort by timeCreated descending if available
+    files.sort((a, b) => {
+      if (!a.timeCreated) return 1;
+      if (!b.timeCreated) return -1;
+      return new Date(b.timeCreated).getTime() - new Date(a.timeCreated).getTime();
+    });
+
+    return files;
+  } catch (error) {
+    console.error("Failed to list storage files:", error);
+    throw error;
+  }
+}
+
+export { firebaseConfig };
+
+/**
+ * Delete a file in Firebase Storage by its full path
+ */
+export async function deleteStorageFile(fullPath: string): Promise<void> {
+  try {
+    // Decode URI component (in case path has encoded characters like %20) and clean spaces
+    let cleanPath = decodeURIComponent(fullPath).trim();
+    if (cleanPath.startsWith("/")) {
+      cleanPath = cleanPath.slice(1);
+    }
+    const fileRef = ref(storage, cleanPath);
+    await deleteObject(fileRef);
+  } catch (error) {
+    console.error(`deleteStorageFile failed for path [${fullPath}]:`, error);
+    throw error;
+  }
 }

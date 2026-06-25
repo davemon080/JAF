@@ -86,6 +86,7 @@ export function AdsTab() {
   const products = useCatalog((s) => s.products);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Form State
   const [title, setTitle] = useState("");
@@ -747,16 +748,7 @@ export function AdsTab() {
                             Tweak
                           </button>
                           <button
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  "Permanently strip this ad unit? This will clean it from server snapshots.",
-                                )
-                              ) {
-                                remove(ad.id);
-                                toast.success("Ad unit removed.");
-                              }
-                            }}
+                            onClick={() => setConfirmDeleteId(ad.id)}
                             className="text-red-500 hover:text-white hover:bg-red-500 border border-red-500/20 p-1"
                             title="Strip Campaign Unit"
                           >
@@ -772,6 +764,49 @@ export function AdsTab() {
           </div>
         )}
       </div>
+
+      {/* Custom Delete Confirmation Modal */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-canvas border border-ink/20 p-6 md:p-8 max-w-md w-full shadow-2xl relative space-y-6">
+            <div className="flex items-start gap-3">
+              <div className="size-10 bg-red-100 flex items-center justify-center rounded-none text-red-600 shrink-0">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div>
+                <h3 className="font-display text-lg uppercase font-semibold tracking-wide text-ink">
+                  Strip Campaign Unit?
+                </h3>
+                <p className="text-xs text-ink-soft mt-1 leading-normal">
+                  Are you sure you want to permanently delete this ad campaign? This action
+                  completely removes it from the database and is irreversible.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 border border-ink/10 text-xs uppercase tracking-wider font-semibold hover:bg-ink/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  remove(confirmDeleteId);
+                  setConfirmDeleteId(null);
+                  toast.success("Ad unit completely removed.");
+                }}
+                className="px-4 py-2 bg-red-600 text-canvas text-xs uppercase tracking-wider font-semibold hover:bg-red-700 transition-colors"
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

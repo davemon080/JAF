@@ -168,7 +168,7 @@ function RootComponent() {
       try {
         // 1. Seed database with defaults if it is completely empty
         if (!active) return;
-        await seedFirebaseIfEmpty();
+        seedFirebaseIfEmpty().catch((err) => console.error("Background seeding error:", err));
         if (!active) return;
 
         // 2. Set up real-time listener subscriptions

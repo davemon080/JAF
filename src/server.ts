@@ -56,8 +56,8 @@ export default {
 
           try {
             // Fetch live products list directly via firestore REST API
-            const projectId = "abiding-galaxy-9cdv3";
-            const databaseId = "ai-studio-81b238ef-76c6-4d2b-8629-d866ad513f5b";
+            const projectId = "justafriend-5bdb3";
+            const databaseId = "justafriend";
             const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/products?pageSize=100`;
 
             const res = await fetch(firestoreUrl);

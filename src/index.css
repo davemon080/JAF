@@ -1,1 +1,8 @@
 @import "tailwindcss";
+
+/* Prevent mobile browsers (especially iOS Safari) from auto-zooming on form fields */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
