@@ -124,7 +124,8 @@ function AuthPage() {
         toast.success("Account created. You're in.");
         performRedirect(redirect);
       } else {
-        await sendPasswordReset(email);
+        const continueUrl = `${window.location.origin}/reset-password`;
+        await sendPasswordReset(email, continueUrl);
         toast.success(
           "Password reset link has been dispatched! Please check your email inbox to update your password.",
         );

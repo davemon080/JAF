@@ -202,9 +202,9 @@ export function FeaturedSlider({ products }: FeaturedSliderProps) {
       {/* Slide Indicators / Dots */}
       {sliderProducts.length > 1 && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2.5">
-          {sliderProducts.map((_, index) => (
+          {sliderProducts.map((p, index) => (
             <button
-              key={index}
+              key={`slider-dot-${p.id || index}`}
               onClick={() => handleDotClick(index)}
               className={`h-1 cursor-pointer transition-all duration-300 ${
                 index === currentIndex ? "w-8 bg-gold" : "w-2 bg-canvas/30 hover:bg-canvas/60"

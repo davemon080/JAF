@@ -24,6 +24,7 @@ import {
   LogOut,
   Plus,
   Trash2,
+  Pencil,
   Eye,
   EyeOff,
   Globe,
@@ -287,13 +288,35 @@ function DashboardTab() {
   const coupons = useCoupons((s) => s.coupons);
   const zones = useCatalog((s) => s.zones);
 
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [messages, setMessages] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem("jaf_cached_contact_messages");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loadingMessages, setLoadingMessages] = useState(() => {
+    try {
+      return !localStorage.getItem("jaf_cached_contact_messages");
+    } catch {
+      return true;
+    }
+  });
   const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     fetchContactMessages()
-      .then((data) => setMessages(data || []))
+      .then((data) => {
+        if (data) {
+          setMessages(data);
+          try {
+            localStorage.setItem("jaf_cached_contact_messages", JSON.stringify(data));
+          } catch (e) {
+            console.error("Failed to save contact messages cache:", e);
+          }
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingMessages(false));
   }, []);
@@ -840,70 +863,6 @@ function ProductsTab() {
             </button>
           )}
           <button
-            onClick={() => {
-              triggerConfirm(
-                "Reset Products",
-                "Are you sure you want to reset all products to the default seed products? This will discard your custom changes.",
-                () => {
-                  reset();
-                  toast.success("Products reset to seeds.");
-                  setSelectedIds([]);
-                },
-                "warning",
-              );
-            }}
-            className="border border-ink/20 px-4 py-2 text-xs tracking-widest uppercase"
-          >
-            Reset
-          </button>
-          <button
-            onClick={() => {
-              triggerConfirm(
-                "Migrate Product Images",
-                "This will upload all current product images (including base64 strings and external URLs) to your Firebase Storage bucket, updating the URLs automatically so that everything runs incredibly fast. Continue?",
-                async () => {
-                  const toastId = toast.loading("Migrating images to Firebase Storage...");
-                  try {
-                    const res = await migrateAllProductsToStorage();
-                    if (res.unauthorizedErrorDetected) {
-                      toast.error(
-                        "Firebase Storage write permission denied. Please configure Storage rules.",
-                        {
-                          id: toastId,
-                        },
-                      );
-                      setShowStorageInstructions(true);
-                    } else if (res.failedCount > 0) {
-                      toast.success(
-                        `Migration partially complete: ${res.migratedCount} products successfully updated. ${res.failedCount} images encountered issues.`,
-                        { id: toastId },
-                      );
-                    } else if (res.migratedCount === 0) {
-                      toast.success("No new images needed migration to your storage bucket.", {
-                        id: toastId,
-                      });
-                    } else {
-                      toast.success(
-                        `Successfully migrated all ${res.migratedCount} product images to Firebase Storage bucket!`,
-                        {
-                          id: toastId,
-                        },
-                      );
-                    }
-                  } catch (err: any) {
-                    toast.error(`Migration failed: ${err?.message || "Unknown error"}`, {
-                      id: toastId,
-                    });
-                  }
-                },
-                "info",
-              );
-            }}
-            className="border border-emerald-600/30 text-emerald-600 hover:border-emerald-600 px-4 py-2 text-xs tracking-widest uppercase transition-colors font-medium"
-          >
-            Migrate to Bucket
-          </button>
-          <button
             onClick={() => setEditing(blank())}
             className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase flex items-center gap-2"
           >
@@ -987,29 +946,35 @@ function ProductsTab() {
                 <td className="p-3 text-right">{formatNaira(p.price)}</td>
                 <td className="p-3 text-right">{p.stock}</td>
                 <td className="p-3 text-right">
-                  <button onClick={() => setEditing(p)} className="text-xs underline mr-3">
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      triggerConfirm(
-                        "Delete Product",
-                        `Are you sure you want to delete product "${p.name}"? This action completely removes it from the database.`,
-                        () => {
-                          remove(p.id);
-                          toast.success(
-                            `Product "${p.name}" deleted successfully from the database.`,
-                          );
-                          setSelectedIds((prev) => prev.filter((id) => id !== p.id));
-                        },
-                        "danger",
-                      );
-                    }}
-                    className="text-xs text-destructive"
-                    title="Delete Product"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setEditing(p)}
+                      className="p-1.5 text-ink-soft hover:text-ink hover:bg-ink/5 border border-ink/10 flex items-center justify-center transition-colors"
+                      title="Edit Product"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        triggerConfirm(
+                          "Delete Product",
+                          `Are you sure you want to delete product "${p.name}"? This action completely removes it from the database.`,
+                          () => {
+                            remove(p.id);
+                            toast.success(
+                              `Product "${p.name}" deleted successfully from the database.`,
+                            );
+                            setSelectedIds((prev) => prev.filter((id) => id !== p.id));
+                          },
+                          "danger",
+                        );
+                      }}
+                      className="p-1.5 text-red-500 hover:text-white hover:bg-red-500 border border-red-500/10 hover:border-transparent flex items-center justify-center transition-colors"
+                      title="Delete Product"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1802,9 +1767,29 @@ function ZonesTab() {
 
 // ---------- SETTINGS (Admin Password / Email Change) ----------
 function SettingsTab() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState(() => {
+    try {
+      const cached = localStorage.getItem("jaf_cached_admin_email");
+      return cached || "";
+    } catch {
+      return "";
+    }
+  });
+  const [password, setPassword] = useState(() => {
+    try {
+      const cached = localStorage.getItem("jaf_cached_admin_password");
+      return cached || "";
+    } catch {
+      return "";
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem("jaf_cached_admin_email");
+    } catch {
+      return true;
+    }
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1812,6 +1797,12 @@ function SettingsTab() {
       if (creds) {
         setEmail(creds.email);
         setPassword(creds.password);
+        try {
+          localStorage.setItem("jaf_cached_admin_email", creds.email);
+          localStorage.setItem("jaf_cached_admin_password", creds.password);
+        } catch (e) {
+          console.error("Failed to save admin credentials cache:", e);
+        }
       }
       setLoading(false);
     });
@@ -1955,26 +1946,57 @@ export function ConfirmationModal({
 }
 
 function MessagesTab() {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [messages, setMessages] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem("jaf_cached_contact_messages");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem("jaf_cached_contact_messages");
+    } catch {
+      return true;
+    }
+  });
   const [search, setSearch] = useState("");
   const [showConfirmDeleteMessageId, setShowConfirmDeleteMessageId] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
+    let hasCache = false;
+    try {
+      const cached = localStorage.getItem("jaf_cached_contact_messages");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        hasCache = parsed && parsed.length > 0;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    if (!hasCache) {
+      setLoading(true);
+    }
     try {
       const data = await fetchContactMessages();
       setMessages(data || []);
+      try {
+        localStorage.setItem("jaf_cached_contact_messages", JSON.stringify(data || []));
+      } catch (e) {
+        console.error("Failed to save contact messages cache:", e);
+      }
     } catch (e) {
       toast.error("Failed to fetch contact messages.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const handleDelete = (id: string) => {
     setShowConfirmDeleteMessageId(id);
@@ -2127,13 +2149,31 @@ function MessagesTab() {
 
 // ---------- TRAFFIC & ANALYTICS ----------
 function TrafficTab() {
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem("jaf_cached_traffic_events");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem("jaf_cached_traffic_events");
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     const unsub = subscribeToTrafficEvents((data) => {
       setEvents(data || []);
       setLoading(false);
+      try {
+        localStorage.setItem("jaf_cached_traffic_events", JSON.stringify(data || []));
+      } catch (e) {
+        console.error("Failed to save traffic events cache:", e);
+      }
     });
     return () => unsub();
   }, []);
@@ -2584,8 +2624,21 @@ service firebase.storage {
 }
 
 function StorageTab() {
-  const [allFiles, setAllFiles] = useState<StorageFile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [allFiles, setAllFiles] = useState<StorageFile[]>(() => {
+    try {
+      const cached = localStorage.getItem("jaf_cached_storage_files");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem("jaf_cached_storage_files");
+    } catch {
+      return true;
+    }
+  });
   const [search, setSearch] = useState("");
   const [folder, setFolder] = useState<"all" | "products" | "root">("products");
   const [viewMode, setViewMode] = useState<"all" | "duplicates">("all");
@@ -2620,7 +2673,20 @@ function StorageTab() {
   });
 
   const fetchFiles = useCallback(async () => {
-    setLoading(true);
+    let hasCache = false;
+    try {
+      const cached = localStorage.getItem("jaf_cached_storage_files");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        hasCache = parsed && parsed.length > 0;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    if (!hasCache) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [productsFiles, rootFiles] = await Promise.all([
@@ -2632,7 +2698,13 @@ function StorageTab() {
       combined.forEach((file) => {
         uniqueFilesMap.set(file.fullPath, file);
       });
-      setAllFiles(Array.from(uniqueFilesMap.values()));
+      const filesList = Array.from(uniqueFilesMap.values());
+      setAllFiles(filesList);
+      try {
+        localStorage.setItem("jaf_cached_storage_files", JSON.stringify(filesList));
+      } catch (e) {
+        console.error("Failed to save storage files cache:", e);
+      }
     } catch (err: any) {
       console.error("Error loading files from Firebase Storage:", err);
       const errMsg = err?.message || String(err);

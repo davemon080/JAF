@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useCart, useCatalog, useWishlist } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
 import { Heart, Minus, Plus, Star, Copy, Check, Share2 } from "lucide-react";
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/product/$slug")({
       ? `${product.subtitle || product.name}: ${product.description}`
       : `Shop the ${params.slug.replace(/-/g, " ")} from JAF. Heavyweight construction, shipping across Abuja & Lafia.`;
     const image = product && product.images && product.images[0] ? product.images[0] : "";
-    const productIdOrSlug = product?.id || params.slug;
+    const productIdOrSlug = product?.slug || product?.id || params.slug;
 
     const metaArray = [
       { title },
@@ -79,17 +79,34 @@ function ProductPage() {
   const toggleWish = useWishlist((s) => s.toggle);
   const wished = useWishlist((s) => s.ids.includes(product.id));
 
-  const [size, setSize] = useState(product.sizes[0]);
-  const [color, setColor] = useState(product.colors[0]);
+  const sizes = useMemo(() => product.sizes || [], [product.sizes]);
+  const colors = useMemo(() => product.colors || [], [product.colors]);
+  const images = useMemo(() => product.images || [], [product.images]);
+  const reviews = useMemo(() => product.reviews || [], [product.reviews]);
+
+  const [size, setSize] = useState(sizes[0] || "");
+  const [color, setColor] = useState(colors[0] || "");
   const [qty, setQty] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
+
+  useEffect(() => {
+    if (sizes.length > 0 && !size) {
+      setSize(sizes[0]);
+    }
+  }, [sizes, size]);
+
+  useEffect(() => {
+    if (colors.length > 0 && !color) {
+      setColor(colors[0]);
+    }
+  }, [colors, color]);
 
   const [copied, setCopied] = useState(false);
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
       : loaderData?.origin || "https://justafriend.com.ng";
-  const shareUrl = `${origin}/product/${product.id}`;
+  const shareUrl = `${origin}/product/${product.slug || product.id}`;
 
   const handleCopyLink = () => {
     navigator.clipboard
@@ -168,7 +185,7 @@ function ProductPage() {
 
     upsert({
       ...product,
-      reviews: [newRev, ...(product.reviews || [])],
+      reviews: [newRev, ...reviews],
     });
 
     toast.success("Thank you! Your review has been submitted.");
@@ -184,9 +201,7 @@ function ProductPage() {
     .filter((p) => p.category === product.category && p.id !== product.id)
     .slice(0, 3);
   const avgRating =
-    product.reviews.length > 0
-      ? product.reviews.reduce((a, r) => a + r.rating, 0) / product.reviews.length
-      : 0;
+    reviews.length > 0 ? reviews.reduce((a, r) => a + r.rating, 0) / reviews.length : 0;
 
   const handleAdd = () => {
     if (!inStock) return;
@@ -198,7 +213,7 @@ function ProductPage() {
     "@context": "https://schema.org/",
     "@type": "Product",
     name: product.name,
-    image: product.images || [],
+    image: images,
     description: product.description,
     brand: {
       "@type": "Brand",
@@ -238,7 +253,7 @@ function ProductPage() {
         <div>
           <div className="aspect-[4/5] bg-zinc-100 overflow-hidden mb-3">
             <SafeImage
-              src={product.images[activeImg]}
+              src={images[activeImg]}
               alt={product.name}
               width={1024}
               height={1280}
@@ -247,7 +262,7 @@ function ProductPage() {
             />
           </div>
           <div className="grid grid-cols-4 gap-2">
-            {product.images.map((src, i) => (
+            {images.map((src, i) => (
               <button
                 key={i}
                 onClick={() => setActiveImg(i)}
@@ -278,10 +293,10 @@ function ProductPage() {
             </h1>
             <div className="flex items-center gap-4 mt-3">
               <p className="text-xl font-medium">{formatNaira(product.price)}</p>
-              {product.reviews.length > 0 && (
+              {reviews.length > 0 && (
                 <span className="text-xs text-ink-soft flex items-center gap-1">
                   <Star className="size-3 fill-current" />
-                  {avgRating.toFixed(1)} ({product.reviews.length})
+                  {avgRating.toFixed(1)} ({reviews.length})
                 </span>
               )}
             </div>
@@ -290,37 +305,41 @@ function ProductPage() {
           <p className="text-sm leading-relaxed text-ink-soft">{product.description}</p>
 
           <div className="space-y-4">
-            <div>
-              <p className="text-[10px] tracking-widest uppercase font-medium mb-2">
-                Color — {color}
-              </p>
-              <div className="flex gap-2">
-                {product.colors.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setColor(c)}
-                    className={`text-[10px] px-3 py-2 border tracking-widest uppercase ${color === c ? "bg-ink text-canvas border-ink" : "border-ink/20"}`}
-                  >
-                    {c}
-                  </button>
-                ))}
+            {colors.length > 0 && (
+              <div>
+                <p className="text-[10px] tracking-widest uppercase font-medium mb-2">
+                  Color — {color}
+                </p>
+                <div className="flex gap-2">
+                  {colors.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setColor(c)}
+                      className={`text-[10px] px-3 py-2 border tracking-widest uppercase ${color === c ? "bg-ink text-canvas border-ink" : "border-ink/20"}`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <p className="text-[10px] tracking-widest uppercase font-medium mb-2">Size</p>
-              <div className="flex flex-wrap gap-2">
-                {product.sizes.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSize(s)}
-                    className={`min-w-12 text-xs px-3 py-2 border tracking-widest ${size === s ? "bg-ink text-canvas border-ink" : "border-ink/20"}`}
-                  >
-                    {s}
-                  </button>
-                ))}
+            {sizes.length > 0 && (
+              <div>
+                <p className="text-[10px] tracking-widest uppercase font-medium mb-2">Size</p>
+                <div className="flex flex-wrap gap-2">
+                  {sizes.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSize(s)}
+                      className={`min-w-12 text-xs px-3 py-2 border tracking-widest ${size === s ? "bg-ink text-canvas border-ink" : "border-ink/20"}`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <p className="text-[10px] tracking-widest uppercase font-medium mb-2">Quantity</p>
@@ -404,13 +423,13 @@ function ProductPage() {
           {/* REVIEWS LIST */}
           <div>
             <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tighter mb-8">
-              REVIEWS ({product.reviews.length})
+              REVIEWS ({reviews.length})
             </h2>
-            {product.reviews.length === 0 ? (
+            {reviews.length === 0 ? (
               <p className="text-sm text-ink-soft">No reviews yet. Be the first to drop one.</p>
             ) : (
               <div className="space-y-6">
-                {product.reviews.map((r, i) => (
+                {reviews.map((r, i) => (
                   <article key={i} className="border-b border-ink/5 pb-6 last:border-b-0">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-medium">{r.name}</p>

@@ -27,6 +27,8 @@ import {
   updateEmail,
   signInAnonymously as fbSignInAnonymously,
   sendPasswordResetEmail as fbSendPasswordResetEmail,
+  confirmPasswordReset as fbConfirmPasswordReset,
+  verifyPasswordResetCode as fbVerifyPasswordResetCode,
 } from "firebase/auth";
 import {
   getStorage,
@@ -284,6 +286,7 @@ export async function fetchProductsFromFirestore(): Promise<Product[]> {
       const data = docSnap.data() as Product;
       products.push({
         ...data,
+        id: data.id || docSnap.id,
         images: data.images || [],
         sizes: data.sizes || [],
         colors: data.colors || [],
@@ -307,6 +310,12 @@ export async function saveProductToFirestore(product: Product): Promise<void> {
 }
 
 export async function deleteProductFromFirestore(productId: string): Promise<void> {
+  if (!productId || productId === "undefined") {
+    console.warn(
+      "deleteProductFromFirestore: productId is empty or 'undefined'. Skipping Firestore delete call.",
+    );
+    return;
+  }
   try {
     await deleteDoc(doc(db, "products", productId));
   } catch (error) {
@@ -639,6 +648,9 @@ export async function customSignIn(email: string, password: string) {
     console.error("Custom sign in error:", error);
     const code = (error?.code || "").toLowerCase();
     const message = (error?.message || "").toLowerCase();
+    if (code.includes("weak-password") || message.includes("weak-password")) {
+      throw new Error("Password should be at least 6 characters.");
+    }
     if (
       code.includes("invalid") ||
       code.includes("wrong-password") ||
@@ -711,10 +723,40 @@ export async function signInWithGoogle() {
   }
 }
 
-export async function sendPasswordReset(email: string): Promise<void> {
+export async function sendPasswordReset(email: string, continueUrl?: string): Promise<void> {
   const emailKey = email.toLowerCase().trim();
   if (!emailKey) throw new Error("Email is required.");
-  await fbSendPasswordResetEmail(fbAuth, emailKey);
+
+  if (continueUrl) {
+    await fbSendPasswordResetEmail(fbAuth, emailKey, {
+      url: continueUrl,
+      handleCodeInApp: true,
+    });
+  } else {
+    await fbSendPasswordResetEmail(fbAuth, emailKey);
+  }
+}
+
+export async function confirmResetPassword(oobCode: string, newPassword: string): Promise<string> {
+  if (!oobCode) throw new Error("Reset code is missing or expired.");
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+
+  // Verify reset code to retrieve user's email
+  const email = await fbVerifyPasswordResetCode(fbAuth, oobCode);
+
+  // Reset the password in Firebase Auth
+  await fbConfirmPasswordReset(fbAuth, oobCode, newPassword);
+
+  if (email) {
+    const emailKey = email.toLowerCase().trim();
+    // Update the password in Firestore for backup/sync records
+    const docRef = doc(db, "users", emailKey);
+    await setDoc(docRef, { password: newPassword }, { merge: true });
+  }
+
+  return email;
 }
 
 export async function changeCurrentUserPassword(password: string): Promise<void> {
@@ -787,6 +829,15 @@ export async function seedFirebaseIfEmpty() {
     const currentUser = auth.currentUser;
     const isAdmin = isAnAdminEmail(currentUser?.email);
     if (!isAdmin) {
+      return;
+    }
+
+    // Check if seeding was already performed for this Firestore database
+    const seedingSnap = await getDoc(doc(db, "settings", "seeding_completed"));
+    if (seedingSnap.exists() && seedingSnap.data()?.completed === true) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("jaf_firebase_seeded", "true");
+      }
       return;
     }
 
@@ -951,6 +1002,10 @@ export async function seedFirebaseIfEmpty() {
         await setDoc(doc(db, "ads", ad.id), cleanUndefined(ad));
       }
     }
+    await setDoc(doc(db, "settings", "seeding_completed"), {
+      completed: true,
+      timestamp: new Date().toISOString(),
+    });
     if (typeof window !== "undefined") {
       localStorage.setItem("jaf_firebase_seeded", "true");
     }
@@ -1064,6 +1119,7 @@ export function subscribeToProducts(callback: (products: Product[]) => void) {
         const data = docSnap.data() as Product;
         products.push({
           ...data,
+          id: data.id || docSnap.id,
           images: data.images || [],
           sizes: data.sizes || [],
           colors: data.colors || [],

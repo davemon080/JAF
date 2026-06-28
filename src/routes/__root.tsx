@@ -127,7 +127,7 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isAdmin = pathname.startsWith("/admin");
-  const isAuth = pathname.startsWith("/auth");
+  const isAuth = pathname.startsWith("/auth") || pathname.startsWith("/reset-password");
   const hideChrome = isAdmin || isAuth;
 
   const setProductsRaw = useCatalog((s) => s.setProductsRaw);
@@ -173,7 +173,7 @@ function RootComponent() {
 
         // 2. Set up real-time listener subscriptions
         const up = subscribeToProducts((products) => {
-          if (active && products && products.length > 0) {
+          if (active && products) {
             setProductsRaw(products);
           }
         });
@@ -184,7 +184,7 @@ function RootComponent() {
         }
 
         const uz = subscribeToZones((zones) => {
-          if (active && zones && zones.length > 0) {
+          if (active && zones) {
             setZonesRaw(zones);
           }
         });
@@ -195,7 +195,7 @@ function RootComponent() {
         }
 
         const uc = subscribeToCoupons((coupons) => {
-          if (active && coupons && coupons.length > 0) {
+          if (active && coupons) {
             setCouponsRaw(coupons);
           }
         });

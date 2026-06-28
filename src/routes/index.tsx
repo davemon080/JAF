@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCatalog, useOrders, useAds } from "@/lib/store";
 import { ProductCard } from "@/components/product-card";
-import { AdCardInfeed, injectFeedAds } from "@/components/dynamic-ads";
+import { AdCardInfeed, injectFeedAds, Ad } from "@/components/dynamic-ads";
 import { ArrowRight } from "lucide-react";
-import { getProductSmartTag } from "@/data/products";
+import { getProductSmartTag, Product } from "@/data/products";
 import { FeaturedSlider } from "@/components/featured-slider";
 
 const catTees = "https://iili.io/CzvuCUF.jpg";
@@ -145,11 +145,19 @@ function HomePage() {
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {justInWithAds.map((item, index) => {
-                if (item.isAdCardUnit) {
-                  return <AdCardInfeed key={`ad-${item.adData.id}-${index}`} ad={item.adData} />;
+                const isAd =
+                  item &&
+                  typeof item === "object" &&
+                  "isAdCardUnit" in item &&
+                  (item as Record<string, unknown>).isAdCardUnit;
+                if (isAd) {
+                  const adUnit = item as { adData?: { id?: string } };
+                  const adId = adUnit.adData?.id || String(index);
+                  return <AdCardInfeed key={`home-ad-${adId}-${index}`} ad={adUnit.adData as Ad} />;
                 }
-                const key = item.id ? `prod-${item.id}-${index}` : `prod-idx-${index}`;
-                return <ProductCard key={key} product={item} />;
+                const p = item as Product;
+                const key = p.id ? `home-prod-${p.id}-${index}` : `home-prod-fallback-${index}`;
+                return <ProductCard key={key} product={p} />;
               })}
             </div>
           </div>
