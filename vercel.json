@@ -18,7 +18,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i)(facebookexternalhit|twitterbot|whatsapp|telegrambot|slackbot|discord|linkedinbot|embedly|googlebot|bingbot|applebot)"
+          "value": ".*([fF]acebookexternalhit|[tT]witterbot|[wW]hats[aA]pp|[tT]elegram[bB]ot|[sS]lackbot|[dD]iscord|[lL]inkedin[bB]ot|[eE]mbedly|[gG]oogle[bB]ot|[bB]ing[bB]ot|[aA]pple[bB]ot).*"
         }
       ],
       "destination": "/api/product?slug=:slug"
@@ -29,7 +29,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i)(facebookexternalhit|twitterbot|whatsapp|telegrambot|slackbot|discord|linkedinbot|embedly|googlebot|bingbot|applebot)"
+          "value": ".*([fF]acebookexternalhit|[tT]witterbot|[wW]hats[aA]pp|[tT]elegram[bB]ot|[sS]lackbot|[dD]iscord|[lL]inkedin[bB]ot|[eE]mbedly|[gG]oogle[bB]ot|[bB]ing[bB]ot|[aA]pple[bB]ot).*"
         }
       ],
       "destination": "/api/product?slug=:slug"

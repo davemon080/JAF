@@ -30,36 +30,106 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (slugStr) {
     try {
-      // 1. Fetch live products list directly via firestore REST API
-      // Since it's server-to-server and highly optimized, it is faster and doesn't load the Firebase SDK
       const projectId = "justafriend-5bdb3";
       const databaseId = "justafriend";
-      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/products?pageSize=100`;
 
-      const response = await fetch(firestoreUrl);
-      if (response.ok) {
-        const data = await response.json();
-        if (data && Array.isArray(data.documents)) {
-          const products = data.documents.map((doc: any) => {
-            const fields = doc.fields || {};
+      // 1. Try to fetch the document directly by ID
+      try {
+        const docUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/products/${slugStr}`;
+        const response = await fetch(docUrl);
+        if (response.ok) {
+          const doc = await response.json();
+          if (doc && doc.fields) {
             const item: any = {};
-            for (const key in fields) {
-              item[key] = parseFirestoreField(fields[key]);
+            for (const key in doc.fields) {
+              item[key] = parseFirestoreField(doc.fields[key]);
             }
             const parts = doc.name.split("/");
             item.id = parts[parts.length - 1];
-            return item;
-          });
+            if (item.slug === slugStr || item.id === slugStr) {
+              product = item;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Direct fetch by ID failed:", err);
+      }
 
-          // Search for matching product in Firestore list
-          product = products.find((p: any) => p.slug === slugStr || p.id === slugStr);
+      // 2. Try to query the document by its slug field using structuredQuery
+      if (!product) {
+        try {
+          const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents:runQuery`;
+          const queryResponse = await fetch(queryUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              structuredQuery: {
+                from: [{ collectionId: "products" }],
+                where: {
+                  fieldFilter: {
+                    field: { fieldPath: "slug" },
+                    op: "EQUAL",
+                    value: { stringValue: slugStr },
+                  },
+                },
+                limit: 1,
+              },
+            }),
+          });
+          if (queryResponse.ok) {
+            const results = await queryResponse.json();
+            if (Array.isArray(results) && results[0] && results[0].document) {
+              const doc = results[0].document;
+              if (doc.fields) {
+                const item: any = {};
+                for (const key in doc.fields) {
+                  item[key] = parseFirestoreField(doc.fields[key]);
+                }
+                const parts = doc.name.split("/");
+                item.id = parts[parts.length - 1];
+                product = item;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Structured query by slug failed:", err);
+        }
+      }
+
+      // 3. Fallback to listing first 100 products and searching in-memory
+      if (!product) {
+        try {
+          const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/products?pageSize=100`;
+          const response = await fetch(firestoreUrl);
+          if (response.ok) {
+            const data = await response.json();
+            if (data && Array.isArray(data.documents)) {
+              const products = data.documents.map((doc: any) => {
+                const fields = doc.fields || {};
+                const item: any = {};
+                for (const key in fields) {
+                  item[key] = parseFirestoreField(fields[key]);
+                }
+                const parts = doc.name.split("/");
+                item.id = parts[parts.length - 1];
+                return item;
+              });
+
+              // Search for matching product in Firestore list
+              product = products.find((p: any) => p.slug === slugStr || p.id === slugStr);
+            }
+          }
+        } catch (err) {
+          console.error("List fetch fallback failed:", err);
         }
       }
     } catch (err) {
-      console.error("Failed to fetch product from Firestore REST API:", err);
+      console.error("General fetch from Firestore failed:", err);
     }
 
-    // 2. Fallback to static SEED_PRODUCTS if not found/error in Firestore
+    // 4. Fallback to static SEED_PRODUCTS if not found/error in Firestore
     if (!product) {
       product = SEED_PRODUCTS.find((p) => p.slug === slugStr || p.id === slugStr);
     }
