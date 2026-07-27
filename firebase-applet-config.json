@@ -3,7 +3,7 @@
   "appId": "1:859313340983:web:a25428079a27c077a475b2",
   "apiKey": "AIzaSyC_afyWB1jtRH3KO6CSpAN7Zfy36k3TZ1Q",
   "authDomain": "justafriend-5bdb3.firebaseapp.com",
-  "firestoreDatabaseId": "justafriend",
+  "firestoreDatabaseId": "(default)",
   "storageBucket": "justafriend-5bdb3.firebasestorage.app",
   "messagingSenderId": "859313340983",
   "measurementId": "G-CWTJ1X6Q04"

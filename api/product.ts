@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (slugStr) {
     try {
       const projectId = "justafriend-5bdb3";
-      const databaseId = "justafriend";
+      const databaseId = "(default)";
 
       // 1. Try to fetch the document directly by ID
       try {
