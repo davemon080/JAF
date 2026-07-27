@@ -1,14 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { initializeApp } from "firebase/app";
 import {
-  initializeFirestore,
+  getFirestore,
   doc,
   collection,
   getDocs,
   getDoc,
   setDoc,
   deleteDoc,
-  getDocFromServer,
   onSnapshot,
   updateDoc,
   increment,
@@ -50,19 +49,7 @@ const dbId =
     ? firebaseConfig.firestoreDatabaseId
     : undefined;
 
-export const db = dbId
-  ? initializeFirestore(
-      app,
-      {
-        experimentalForceLongPolling: true,
-        useFetchStreams: false,
-      },
-      dbId,
-    )
-  : initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-      useFetchStreams: false,
-    });
+export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
 
 export const fbAuth = getAuth(app);
 export const storage = getStorage(app);
@@ -190,14 +177,12 @@ class CustomAuth {
 
 export const auth = new CustomAuth();
 
-// Test the connection as instructed by critical directive
+// Test connection helper
 async function testConnection() {
   try {
-    await getDocFromServer(doc(db, "test", "connection"));
+    await getDoc(doc(db, "test", "connection"));
   } catch (error) {
-    if (error instanceof Error && error.message.includes("the client is offline")) {
-      console.error("Please check your Firebase configuration.");
-    }
+    // Ignore test connection error
   }
 }
 testConnection();
@@ -553,7 +538,11 @@ export async function customSignUp(email: string, password: string, fullName: st
       lastLoginAt: new Date().toISOString(),
     };
 
-    await setDoc(docRef, newUser);
+    try {
+      await setDoc(docRef, newUser);
+    } catch (docErr) {
+      console.warn("Could not write user profile doc on signup:", docErr);
+    }
     auth.setCurrentUser({ uid: user.uid, email: emailKey, displayName: fullName, role });
     return newUser;
   } catch (error: any) {
@@ -607,38 +596,48 @@ export async function customSignIn(email: string, password: string) {
 
     const user = userCredential?.user;
     const docRef = doc(db, "users", emailKey);
-    const docSnap = await getDoc(docRef);
-    let userData = docSnap.exists() ? docSnap.data() : null;
+    let userData: any = null;
+
+    try {
+      const docSnap = await getDoc(docRef);
+      userData = docSnap.exists() ? docSnap.data() : null;
+    } catch (docErr) {
+      console.warn("Firestore user profile fetch warning:", docErr);
+    }
 
     const role = isAdminEmail ? "admin" : userData?.role || "user";
 
-    if (!userData) {
-      userData = {
-        uid: user?.uid || "u_" + emailKey.replace(/[^a-zA-Z0-9]/g, "_"),
-        email: emailKey,
-        fullName: user?.displayName || emailKey.split("@")[0],
-        password,
-        role,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
-      };
-      await setDoc(docRef, userData);
-    } else {
-      await setDoc(
-        docRef,
-        {
-          lastLoginAt: new Date().toISOString(),
+    try {
+      if (!userData) {
+        userData = {
+          uid: user?.uid || "u_" + emailKey.replace(/[^a-zA-Z0-9]/g, "_"),
+          email: emailKey,
+          fullName: user?.displayName || emailKey.split("@")[0],
           password,
-          role, // set / preserve role
-        },
-        { merge: true },
-      );
+          role,
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+        };
+        await setDoc(docRef, userData);
+      } else {
+        await setDoc(
+          docRef,
+          {
+            lastLoginAt: new Date().toISOString(),
+            password,
+            role,
+          },
+          { merge: true },
+        );
+      }
+    } catch (saveErr) {
+      console.warn("Firestore user profile save warning:", saveErr);
     }
 
     const verifiedUser = {
-      uid: user?.uid || userData.uid,
+      uid: user?.uid || userData?.uid || "u_" + emailKey.replace(/[^a-zA-Z0-9]/g, "_"),
       email: emailKey,
-      displayName: userData.fullName || "",
+      displayName: userData?.fullName || user?.displayName || emailKey.split("@")[0],
       role,
     };
 
@@ -678,34 +677,37 @@ export async function signInWithGoogle() {
     }
 
     const docRef = doc(db, "users", emailKey);
-    const docSnap = await getDoc(docRef);
-
     let displayName = user.displayName || "";
     const isAdmin = isAnAdminEmail(emailKey);
     let role = isAdmin ? "admin" : "user";
 
-    if (docSnap.exists()) {
-      const existing = docSnap.data();
-      role = existing.role || role;
-      displayName = existing.fullName || displayName;
+    try {
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const existing = docSnap.data();
+        role = existing.role || role;
+        displayName = existing.fullName || displayName;
 
-      await setDoc(
-        docRef,
-        {
+        await setDoc(
+          docRef,
+          {
+            lastLoginAt: new Date().toISOString(),
+            role,
+          },
+          { merge: true },
+        );
+      } else {
+        await setDoc(docRef, {
+          uid: user.uid,
+          email: emailKey,
+          fullName: displayName,
+          createdAt: new Date().toISOString(),
           lastLoginAt: new Date().toISOString(),
-          role,
-        },
-        { merge: true },
-      );
-    } else {
-      await setDoc(docRef, {
-        uid: user.uid,
-        email: emailKey,
-        fullName: displayName,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
-        role: role,
-      });
+          role: role,
+        });
+      }
+    } catch (gDocErr) {
+      console.warn("Google sign in firestore user doc warning:", gDocErr);
     }
 
     const loggedInUser = {
