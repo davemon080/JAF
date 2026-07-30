@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { processProductImage } from "@/lib/image-processor";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore,
@@ -1318,6 +1319,20 @@ function getBrowserName(): string {
   return "Other";
 }
 
+let cachedDeviceId: string | null = null;
+export function getDeviceId(): string {
+  if (typeof window === "undefined") return "SSR";
+  if (cachedDeviceId) return cachedDeviceId;
+  const key = "jaf_analytics_device_id";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = "dev_" + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem(key, id);
+  }
+  cachedDeviceId = id;
+  return id;
+}
+
 let cachedSessionId: string | null = null;
 function getSessionId(): string {
   if (typeof window === "undefined") return "SSR";
@@ -1350,6 +1365,7 @@ export async function logTrafficEvent(pathname: string): Promise<void> {
       path: pathname,
       timestamp: dateObj.toISOString(),
       date: dateStr,
+      deviceId: getDeviceId(),
       sessionId: getSessionId(),
       device: getDeviceType(),
       browser: getBrowserName(),
@@ -1382,74 +1398,24 @@ export function subscribeToTrafficEvents(callback: (events: any[]) => void) {
 }
 
 /**
- * Helper to compress image file or data URL to crisp high quality Base64 Data URL,
- * dynamically guaranteed to stay under Firestore's 1MB document property limit (~280KB max base64 per image).
+ * Helper to convert image file or data URL to exact Base64 Data URL without losing quality or resolution.
  */
-export function compressImageToBase64(
+export async function compressImageToBase64(
   fileOrBlobOrUrl: File | Blob | string,
-  maxDim = 1200,
-  initialQuality = 0.82,
 ): Promise<string> {
+  if (typeof fileOrBlobOrUrl === "string") {
+    return fileOrBlobOrUrl;
+  }
   return new Promise((resolve, reject) => {
-    const processSrc = (src: string) => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Failed to load image element"));
-      img.onload = () => {
-        const attempt = (dim: number, q: number): string => {
-          let width = img.width;
-          let height = img.height;
-          if (width > dim || height > dim) {
-            if (width > height) {
-              height = Math.round((height * dim) / width);
-              width = dim;
-            } else {
-              width = Math.round((width * dim) / height);
-              height = dim;
-            }
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, width);
-          canvas.height = Math.max(1, height);
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return src;
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = "high";
-          ctx.drawImage(img, 0, 0, width, height);
-          return canvas.toDataURL("image/jpeg", q);
-        };
-
-        let res = attempt(maxDim, initialQuality);
-        const MAX_CHARS = 280000; // ~210KB binary size limit per image
-        if (res.length > MAX_CHARS) {
-          res = attempt(900, 0.76);
-        }
-        if (res.length > MAX_CHARS) {
-          res = attempt(750, 0.68);
-        }
-        resolve(res);
-      };
-      img.src = src;
-    };
-
-    if (typeof fileOrBlobOrUrl === "string") {
-      processSrc(fileOrBlobOrUrl);
-    } else {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Failed to read image file"));
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          processSrc(event.target.result as string);
-        } else {
-          reject(new Error("Failed to read image file data"));
-        }
-      };
-      reader.readAsDataURL(fileOrBlobOrUrl);
-    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(fileOrBlobOrUrl);
   });
 }
 
 /**
- * Sanitizes product base64 images to prevent Firestore 1MB document property limit errors
+ * Sanitizes product images for Firestore: attempts Storage upload first, falling back to safe compressed base64 if needed.
  */
 async function sanitizeProductForFirestore(product: Product): Promise<Product> {
   if (!product.images || !Array.isArray(product.images) || product.images.length === 0) {
@@ -1461,13 +1427,33 @@ async function sanitizeProductForFirestore(product: Product): Promise<Product> {
 
   for (let i = 0; i < newImages.length; i++) {
     const img = newImages[i];
-    if (typeof img === "string" && img.startsWith("data:") && img.length > 280000) {
+    if (typeof img === "string" && img.startsWith("data:")) {
       try {
-        const compressed = await compressImageToBase64(img, 1000, 0.78);
-        newImages[i] = compressed;
-        hasChanged = true;
-      } catch (err) {
-        console.warn(`Could not compress oversized base64 image at index ${i}`, err);
+        const ext = img.match(/data:image\/(.*?);/)?.[1] || "jpeg";
+        const fileName = `${product.id || "product"}_img_${i}_${Date.now()}.${ext}`;
+        const storageUrl = await uploadImageToStorage(img, fileName);
+        if (storageUrl && storageUrl.startsWith("http")) {
+          newImages[i] = storageUrl;
+          hasChanged = true;
+          continue;
+        }
+      } catch (storageErr) {
+        console.warn(
+          `Storage upload unavailable for product image ${i}, checking base64 size:`,
+          storageErr,
+        );
+      }
+
+      if (img.length > 250000) {
+        try {
+          const res = await processProductImage(img, { maxDim: 1600, quality: 0.9 });
+          if (res.base64Url && res.base64Url.length < img.length) {
+            newImages[i] = res.base64Url;
+            hasChanged = true;
+          }
+        } catch (compressErr) {
+          console.warn(`Base64 optimization failed for product image ${i}:`, compressErr);
+        }
       }
     }
   }

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { SEED_PRODUCTS, type Product } from "@/data/products";
 import { DEFAULT_ZONES, type DeliveryZone } from "@/data/zones";
 import logoAsset from "@/assets/jaf-logo.asset.json";
@@ -16,6 +16,31 @@ import {
   saveAdToFirestore,
   deleteAdFromFirestore,
 } from "./firebase";
+
+const safeStorage = createJSONStorage(() => ({
+  getItem: (name: string) => {
+    try {
+      return localStorage.getItem(name);
+    } catch (e) {
+      console.warn("localStorage getItem warning:", e);
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (e) {
+      console.warn(`localStorage setItem warning (quota limit reached for ${name}):`, e);
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      localStorage.removeItem(name);
+    } catch (e) {
+      console.warn("localStorage removeItem warning:", e);
+    }
+  },
+}));
 
 // ---------- Cart ----------
 export interface CartLine {
@@ -248,6 +273,7 @@ export const useCatalog = create<CatalogState>()(
     {
       name: "jaf-catalog",
       version: 4,
+      storage: safeStorage,
       migrate: () => ({
         products: SEED_PRODUCTS,
         zones: DEFAULT_ZONES,

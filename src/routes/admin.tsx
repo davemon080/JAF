@@ -55,6 +55,13 @@ import {
   Lock,
   ShieldCheck,
   Key,
+  Download,
+  History,
+  Filter,
+  Repeat,
+  Clock,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import {
   getAdminCredentials,
@@ -75,6 +82,7 @@ import {
   firebaseConfig,
   type StorageFile,
 } from "@/lib/firebase";
+import { processProductImage } from "@/lib/image-processor";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -797,6 +805,30 @@ function ProductsTab() {
   const startIndex = (activePage - 1) * itemsPerPage;
   const paginatedProducts = products.slice(startIndex, startIndex + itemsPerPage);
 
+  const storageMetrics = useMemo(() => {
+    let bytes = 0;
+    try {
+      bytes = new Blob([JSON.stringify(products)]).size;
+    } catch {
+      bytes = JSON.stringify(products).length;
+    }
+    const usedMB = bytes / (1024 * 1024);
+    const totalLimitMB = 1024; // 1 GB (1,024 MB) Allocated Database & Asset Quota
+    const leftMB = Math.max(0, totalLimitMB - usedMB);
+    const percentage = Math.min(100, (usedMB / totalLimitMB) * 100);
+
+    return {
+      usedMBDisplay: usedMB < 0.01 && bytes > 0 ? "< 0.01 MB" : `${usedMB.toFixed(2)} MB`,
+      leftMBDisplay: `${leftMB.toFixed(2)} MB`,
+      totalLimitMB,
+      bytes,
+      percentageDisplay: percentage < 0.1 && usedMB > 0 ? "0.1" : percentage.toFixed(1),
+      percentageNum: percentage,
+      productCount: products.length,
+      totalImagesCount: products.reduce((acc, p) => acc + (p.images?.length || 0), 0),
+    };
+  }, [products]);
+
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     title: string;
@@ -874,6 +906,64 @@ function ProductsTab() {
           >
             <Plus className="size-3.5" /> New
           </button>
+        </div>
+      </div>
+
+      {/* Storage Used & Storage Left Metric Banner */}
+      <div className="border border-ink/10 bg-card p-4 sm:p-5 space-y-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-ink/5 border border-ink/10 rounded shrink-0">
+              <HardDrive className="size-5 text-ink" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-ink">
+                  Product Storage Quota
+                </h3>
+                <span className="text-[10px] uppercase font-mono tracking-wider text-ink-soft bg-ink/5 px-2 py-0.5 rounded border border-ink/10">
+                  1 GB Free Limit
+                </span>
+              </div>
+              <p className="text-xs text-ink-soft mt-0.5">
+                {storageMetrics.productCount} products in catalog • {storageMetrics.totalImagesCount} image assets stored
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 text-xs">
+            <div className="text-left sm:text-right">
+              <span className="text-ink-soft block text-[10px] uppercase tracking-wider font-medium">
+                Storage Used
+              </span>
+              <span className="font-semibold text-ink text-sm font-mono">
+                {storageMetrics.usedMBDisplay}
+              </span>
+            </div>
+            <div className="h-7 w-px bg-ink/10" />
+            <div className="text-left sm:text-right">
+              <span className="text-ink-soft block text-[10px] uppercase tracking-wider font-medium">
+                Storage Left
+              </span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm font-mono">
+                {storageMetrics.leftMBDisplay}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Storage Usage Progress Bar */}
+        <div className="space-y-1">
+          <div className="h-2 w-full bg-ink/10 rounded-full overflow-hidden flex">
+            <div
+              className="h-full bg-ink transition-all duration-300"
+              style={{ width: `${Math.max(storageMetrics.percentageNum, 0.4)}%` }}
+            />
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-ink-soft font-mono">
+            <span>{storageMetrics.percentageDisplay}% of 1 GB allocated capacity used</span>
+            <span>{storageMetrics.leftMBDisplay} available</span>
+          </div>
         </div>
       </div>
 
@@ -1105,25 +1195,64 @@ function ProductEditor({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error("Image file is too large (max 15MB).");
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("Image file is too large (max 100MB).");
       return;
     }
 
-    const toastId = toast.loading(`Processing Image ${index + 1}...`);
+    const isOver20MB = file.size > 20 * 1024 * 1024;
+    const mbSize = (file.size / (1024 * 1024)).toFixed(1);
+    const toastId = toast.loading(
+      isOver20MB
+        ? `File is ${mbSize}MB (>20MB). Resizing & compressing via Web Worker to fit...`
+        : file.size > 1 * 1024 * 1024
+          ? `Processing ${mbSize}MB image via Web Worker...`
+          : `Uploading Image ${index + 1}...`,
+    );
 
     try {
-      const base64Url = await compressImageToBase64(file, 1200, 0.82);
+      // If image is over 20MB, run background Web Worker to resize and compress file size to fit safely
+      const resizeOptions = isOver20MB
+        ? { maxDim: 1400, quality: 0.82, targetMaxBytes: 350000 }
+        : { maxDim: 1600, quality: 0.9, targetMaxBytes: 450000 };
+
+      const res = await processProductImage(file, resizeOptions);
+      let finalUrl = res.base64Url;
+
+      // Try Firebase Storage if available
+      try {
+        const ext = file.name.split(".").pop() || "jpg";
+        const fileName = `${p.id || "product"}_img_${index}_${Date.now()}.${ext}`;
+        const storageUrl = await uploadImageToStorage(file, fileName);
+        if (storageUrl && storageUrl.startsWith("http")) {
+          finalUrl = storageUrl;
+        }
+      } catch (storageErr) {
+        console.warn(
+          "Firebase Storage upload not available, using high-quality resized image:",
+          storageErr,
+        );
+      }
+
       const updatedImages = [...p.images];
-      updatedImages[index] = base64Url;
+      updatedImages[index] = finalUrl;
       set("images", updatedImages);
-      toast.success(
-        `Image ${index + 1} attached (Stored in Firestore - No Storage billing required)!`,
-        { id: toastId },
-      );
+
+      if (isOver20MB) {
+        const processedMb = (res.processedSize / (1024 * 1024)).toFixed(2);
+        toast.success(
+          `Image ${index + 1} (${mbSize}MB) resized down to ${processedMb}MB via Web Worker!`,
+          { id: toastId },
+        );
+      } else {
+        const sizeKb = (res.processedSize / 1024).toFixed(0);
+        toast.success(`Image ${index + 1} attached (${sizeKb}KB)!`, {
+          id: toastId,
+        });
+      }
     } catch (err: any) {
-      console.error("Image processing failed:", err);
-      toast.error(`Image processing failed: ${err?.message || "Unknown error"}`, { id: toastId });
+      console.error("Image upload failed:", err);
+      toast.error(`Image upload failed: ${err?.message || "Unknown error"}`, { id: toastId });
     }
   };
 
@@ -2300,6 +2429,20 @@ function MessagesTab() {
 }
 
 // ---------- TRAFFIC & ANALYTICS ----------
+interface DeviceSummary {
+  deviceId: string;
+  deviceType: "Mobile" | "Tablet" | "Desktop";
+  browser: string;
+  totalVisits: number;
+  sessionsCount: number;
+  firstSeen: string;
+  lastActive: string;
+  pageHits: { [path: string]: number };
+  topPage: string;
+  referrers: string[];
+  history: any[];
+}
+
 function TrafficTab() {
   const [events, setEvents] = useState<any[]>(() => {
     try {
@@ -2316,6 +2459,13 @@ function TrafficTab() {
       return true;
     }
   });
+
+  // Filters & State
+  const [selectedRange, setSelectedRange] = useState<"7d" | "30d" | "all">("7d");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [visitorTypeFilter, setVisitorTypeFilter] = useState<"all" | "returning" | "single">("all");
+  const [sortBy, setSortBy] = useState<"visits_desc" | "last_active" | "first_seen">("visits_desc");
+  const [selectedDeviceModal, setSelectedDeviceModal] = useState<DeviceSummary | null>(null);
 
   useEffect(() => {
     const unsub = subscribeToTrafficEvents((data) => {
@@ -2340,84 +2490,171 @@ function TrafficTab() {
     );
   }
 
-  // Calculate statistics
-  const totalViews = events.length;
-
-  // Unique Visitors (Sessions)
-  const uniqueSessions = new Set(events.map((e) => e.sessionId));
-  const uniqueVisitors = uniqueSessions.size;
-
-  // Average Views per Session
-  const avgViewsPerSession = uniqueVisitors > 0 ? (totalViews / uniqueVisitors).toFixed(1) : "0.0";
-
-  // Group events by YYYY-MM-DD for the chart
-  const dateMap: { [key: string]: { views: number; sessions: Set<string> } } = {};
-
-  // Initialize last 7 days with zeros so the chart is always fully presented
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split("T")[0];
-    dateMap[dateStr] = { views: 0, sessions: new Set() };
-  }
+  // 1. Group Events by Device ID (or Session ID fallback)
+  const devicesMap: { [key: string]: DeviceSummary } = {};
 
   events.forEach((evt) => {
-    const dStr = evt.date || (evt.timestamp ? evt.timestamp.split("T")[0] : "");
-    if (dStr && dateMap[dStr] !== undefined) {
-      dateMap[dStr].views += 1;
-      if (evt.sessionId) {
-        dateMap[dStr].sessions.add(evt.sessionId);
-      }
-    } else if (dStr) {
-      if (!dateMap[dStr]) {
-        dateMap[dStr] = { views: 0, sessions: new Set() };
-      }
-      dateMap[dStr].views += 1;
-      if (evt.sessionId) {
-        dateMap[dStr].sessions.add(evt.sessionId);
-      }
+    const deviceKey = evt.deviceId || evt.sessionId || "unknown_device";
+    const evtTime = evt.timestamp || new Date().toISOString();
+
+    if (!devicesMap[deviceKey]) {
+      devicesMap[deviceKey] = {
+        deviceId: deviceKey,
+        deviceType: evt.device || "Desktop",
+        browser: evt.browser || "Chrome",
+        totalVisits: 0,
+        sessionsCount: 0,
+        firstSeen: evtTime,
+        lastActive: evtTime,
+        pageHits: {},
+        topPage: evt.path || "/",
+        referrers: [],
+        history: [],
+      };
+    }
+
+    const devObj = devicesMap[deviceKey];
+    devObj.totalVisits += 1;
+    devObj.history.push(evt);
+
+    if (new Date(evtTime).getTime() < new Date(devObj.firstSeen).getTime()) {
+      devObj.firstSeen = evtTime;
+    }
+    if (new Date(evtTime).getTime() > new Date(devObj.lastActive).getTime()) {
+      devObj.lastActive = evtTime;
+    }
+
+    const path = evt.path || "/";
+    devObj.pageHits[path] = (devObj.pageHits[path] || 0) + 1;
+
+    const ref = evt.referrer || "Direct Link";
+    if (ref && !devObj.referrers.includes(ref)) {
+      devObj.referrers.push(ref);
     }
   });
 
-  // Convert dateMap to sorted chart list
-  const chartData = Object.keys(dateMap)
-    .sort()
-    .slice(-7)
-    .map((key) => {
-      const displayDate = new Date(key).toLocaleDateString("en-NG", {
-        weekday: "short",
-        day: "numeric",
-      });
-      return {
-        date: displayDate,
-        views: dateMap[key].views,
-        visitors: dateMap[key].sessions.size,
-      };
+  // Finalize stats for each device
+  const deviceList = Object.values(devicesMap).map((dev) => {
+    const sessionSet = new Set(dev.history.map((e) => e.sessionId).filter(Boolean));
+    const sessionsCount = sessionSet.size || 1;
+
+    let maxHits = 0;
+    let top = "/";
+    Object.entries(dev.pageHits).forEach(([p, h]) => {
+      if (h > maxHits) {
+        maxHits = h;
+        top = p;
+      }
     });
 
-  // Devices metrics
+    const sortedHistory = [...dev.history].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
+
+    return {
+      ...dev,
+      sessionsCount,
+      topPage: top,
+      history: sortedHistory,
+    };
+  });
+
+  // Overall KPIs
+  const totalViews = events.length;
+  const uniqueVisitorsCount = deviceList.length; // Each device counts as 1 visitor
+  const avgVisitsPerDevice =
+    uniqueVisitorsCount > 0 ? (totalViews / uniqueVisitorsCount).toFixed(1) : "0.0";
+  const returningDevices = deviceList.filter((d) => d.totalVisits > 1);
+  const returningVisitorRate =
+    uniqueVisitorsCount > 0
+      ? ((returningDevices.length / uniqueVisitorsCount) * 100).toFixed(1)
+      : "0.0";
+
+  // Today's Stats
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayEvents = events.filter((e) => {
+    const d = e.date || (e.timestamp ? e.timestamp.split("T")[0] : "");
+    return d === todayStr;
+  });
+  const todayViews = todayEvents.length;
+  const todayUniqueDevices = new Set(todayEvents.map((e) => e.deviceId || e.sessionId || "unknown"))
+    .size;
+
+  // Visit Frequency Breakdown
+  const freq1 = deviceList.filter((d) => d.totalVisits === 1).length;
+  const freq2to5 = deviceList.filter((d) => d.totalVisits >= 2 && d.totalVisits <= 5).length;
+  const freq6to10 = deviceList.filter((d) => d.totalVisits >= 6 && d.totalVisits <= 10).length;
+  const freq10plus = deviceList.filter((d) => d.totalVisits > 10).length;
+
+  // Devices metrics (Hardware distribution)
   const deviceCounts: { [key: string]: number } = { Desktop: 0, Mobile: 0, Tablet: 0 };
-  events.forEach((evt) => {
-    const dev = evt.device || "Desktop";
+  deviceList.forEach((d) => {
+    const dev = d.deviceType || "Desktop";
     if (deviceCounts[dev] !== undefined) {
       deviceCounts[dev] += 1;
     }
   });
 
-  // Pages hits metrics
-  const pageHits: { [key: string]: number } = {};
+  // Daily Chart Data based on selectedRange (7d, 30d, all)
+  const dateMap: { [key: string]: { views: number; devices: Set<string> } } = {};
+  const daysCount = selectedRange === "7d" ? 7 : selectedRange === "30d" ? 30 : 60;
+
+  for (let i = daysCount - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split("T")[0];
+    dateMap[dateStr] = { views: 0, devices: new Set() };
+  }
+
   events.forEach((evt) => {
-    const path = evt.path || "/";
-    pageHits[path] = (pageHits[path] || 0) + 1;
+    const dStr = evt.date || (evt.timestamp ? evt.timestamp.split("T")[0] : "");
+    const devKey = evt.deviceId || evt.sessionId || "unknown";
+    if (dStr && dateMap[dStr] !== undefined) {
+      dateMap[dStr].views += 1;
+      dateMap[dStr].devices.add(devKey);
+    } else if (dStr && selectedRange === "all") {
+      if (!dateMap[dStr]) {
+        dateMap[dStr] = { views: 0, devices: new Set() };
+      }
+      dateMap[dStr].views += 1;
+      dateMap[dStr].devices.add(devKey);
+    }
   });
 
-  const sortedPages = Object.entries(pageHits)
-    .map(([path, hits]) => ({ path, hits }))
+  const chartData = Object.keys(dateMap)
+    .sort()
+    .map((key) => {
+      const displayDate = new Date(key).toLocaleDateString("en-NG", {
+        month: selectedRange === "30d" ? "numeric" : undefined,
+        weekday: selectedRange === "7d" ? "short" : undefined,
+        day: "numeric",
+      });
+      return {
+        date: displayDate,
+        views: dateMap[key].views,
+        visitors: dateMap[key].devices.size,
+      };
+    });
+
+  // Pages Hits & Unique Visitors per Page
+  const pageMetrics: { [path: string]: { hits: number; devices: Set<string> } } = {};
+  events.forEach((evt) => {
+    const path = evt.path || "/";
+    const devKey = evt.deviceId || evt.sessionId || "unknown";
+    if (!pageMetrics[path]) {
+      pageMetrics[path] = { hits: 0, devices: new Set() };
+    }
+    pageMetrics[path].hits += 1;
+    pageMetrics[path].devices.add(devKey);
+  });
+
+  const sortedPages = Object.entries(pageMetrics)
+    .map(([path, data]) => ({ path, hits: data.hits, uniqueDevices: data.devices.size }))
     .sort((a, b) => b.hits - a.hits)
     .slice(0, 8);
 
-  // Referrer channels
-  const referrers: { [key: string]: number } = {};
+  // Acquisition Channels (Referrers)
+  const referrersMap: { [source: string]: { hits: number; devices: Set<string> } } = {};
   events.forEach((evt) => {
     let ref = evt.referrer || "Direct Link";
     if (ref.includes("localhost") || ref.includes("127.0.0.1")) {
@@ -2426,8 +2663,6 @@ function TrafficTab() {
       ref = "Internal Navigation";
     } else if (ref.includes("google.com")) {
       ref = "Google Search";
-    } else if (ref.includes("iili.io")) {
-      ref = "Image Hosting Referrer";
     }
     try {
       if (ref.startsWith("http")) {
@@ -2435,84 +2670,223 @@ function TrafficTab() {
         ref = urlObj.hostname;
       }
     } catch (_) {
-      // Ignore URL parsing exceptions for non-standard referrers
+      // ignore parsing errors
     }
-    referrers[ref] = (referrers[ref] || 0) + 1;
+    const devKey = evt.deviceId || evt.sessionId || "unknown";
+    if (!referrersMap[ref]) {
+      referrersMap[ref] = { hits: 0, devices: new Set() };
+    }
+    referrersMap[ref].hits += 1;
+    referrersMap[ref].devices.add(devKey);
   });
 
-  const sortedReferrers = Object.entries(referrers)
-    .map(([source, count]) => ({ source, count }))
-    .sort((a, b) => b.count - a.count)
+  const sortedReferrers = Object.entries(referrersMap)
+    .map(([source, data]) => ({ source, hits: data.hits, uniqueDevices: data.devices.size }))
+    .sort((a, b) => b.hits - a.hits)
     .slice(0, 6);
+
+  // Filter and Sort Devices List for Directory Table
+  const filteredDevices = deviceList
+    .filter((dev) => {
+      // Visitor type filter
+      if (visitorTypeFilter === "returning" && dev.totalVisits <= 1) return false;
+      if (visitorTypeFilter === "single" && dev.totalVisits !== 1) return false;
+
+      // Search query filter
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        dev.deviceId.toLowerCase().includes(q) ||
+        dev.deviceType.toLowerCase().includes(q) ||
+        dev.browser.toLowerCase().includes(q) ||
+        dev.topPage.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === "visits_desc") return b.totalVisits - a.totalVisits;
+      if (sortBy === "last_active")
+        return new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime();
+      if (sortBy === "first_seen")
+        return new Date(a.firstSeen).getTime() - new Date(b.firstSeen).getTime();
+      return 0;
+    });
+
+  // CSV Export function
+  const handleExportCsv = () => {
+    const headers = [
+      "Device Identifier",
+      "Device Category",
+      "Browser",
+      "Total Visits",
+      "Sessions Count",
+      "First Seen Timestamp",
+      "Last Active Timestamp",
+      "Top Page Visited",
+    ];
+    const rows = deviceList.map((d) => [
+      `"${d.deviceId}"`,
+      `"${d.deviceType}"`,
+      `"${d.browser}"`,
+      d.totalVisits,
+      d.sessionsCount,
+      `"${new Date(d.firstSeen).toLocaleString("en-NG")}"`,
+      `"${new Date(d.lastActive).toLocaleString("en-NG")}"`,
+      `"${d.topPage}"`,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `traffic_report_devices_${new Date().toISOString().split("T")[0]}.csv`,
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Full platform traffic report exported to CSV!");
+  };
 
   return (
     <div className="space-y-10">
+      {/* Title & Real-time Indicator Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-4xl font-semibold tracking-tighter">Traffic Analysis</h1>
+          <h1 className="font-display text-4xl font-semibold tracking-tighter">
+            Platform Traffic Audit
+          </h1>
           <p className="text-sm text-ink-soft mt-1">
-            Real-time application visitor insights and telemetry.
+            Device-level analytics tracking unique visitors, visit counts, and navigation behavior.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-mono text-zinc-500 bg-zinc-100 px-3 py-1.5 self-start md:self-auto border border-zinc-200">
-          <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
-          <span>REAL-TIME ANALYSIS ENABLED</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCsv}
+            className="border border-ink/20 hover:border-ink bg-card text-ink px-3 py-1.5 text-xs font-mono uppercase tracking-widest flex items-center gap-2 transition-colors"
+          >
+            <Download className="size-3.5" /> Export Traffic CSV
+          </button>
+          <div className="flex items-center gap-2 text-xs font-mono text-zinc-500 bg-zinc-100 px-3 py-1.5 border border-zinc-200">
+            <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span>REAL-TIME ANALYSIS ENABLED</span>
+          </div>
         </div>
       </div>
 
-      {/* KPI Stats */}
+      {/* Primary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
             <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
-              Total Page Views
+              Total Visits / Pageviews
             </span>
             <Eye className="size-4 text-ink-soft" />
           </div>
           <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{totalViews}</p>
+          <span className="text-[10px] text-ink-soft mt-1 block">Across all recorded routes</span>
         </div>
+
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
             <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
-              Unique Visitors
+              Unique Visitors (Devices)
             </span>
-            <Users className="size-4 text-ink-soft" />
+            <Users className="size-4 text-gold font-bold" />
           </div>
-          <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{uniqueVisitors}</p>
+          <p className="text-3xl font-bold tracking-tight mt-2 font-mono text-ink">
+            {uniqueVisitorsCount}
+          </p>
+          <span className="text-[10px] text-ink-soft mt-1 block">1 device = 1 unique visitor</span>
         </div>
+
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
             <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
-              Views / Visitor
+              Avg Visits / Device
             </span>
             <TrendingUp className="size-4 text-ink-soft" />
           </div>
-          <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{avgViewsPerSession}</p>
+          <p className="text-3xl font-bold tracking-tight mt-2 font-mono">{avgVisitsPerDevice}</p>
+          <span className="text-[10px] text-ink-soft mt-1 block">Interaction frequency index</span>
         </div>
+
         <div className="bg-card border border-ink/10 p-6">
           <div className="flex justify-between items-start">
             <span className="text-[10px] tracking-widest uppercase text-ink-soft font-semibold">
-              Active Channels
+              Returning Visitor Rate
             </span>
-            <Globe className="size-4 text-ink-soft" />
+            <Repeat className="size-4 text-ink-soft" />
           </div>
           <p className="text-3xl font-bold tracking-tight mt-2 font-mono">
-            {Object.keys(referrers).length}
+            {returningVisitorRate}%
           </p>
+          <span className="text-[10px] text-ink-soft mt-1 block">
+            {returningDevices.length} repeat visitor devices
+          </span>
         </div>
       </div>
 
+      {/* Secondary Quick Metrics Row */}
+      <div className="grid grid-cols-3 gap-4 bg-zinc-50 border border-ink/10 p-4 font-mono text-xs">
+        <div className="flex items-center gap-2">
+          <Clock className="size-4 text-ink-soft" />
+          <span>
+            Today Views: <strong className="text-ink">{todayViews}</strong>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Users className="size-4 text-ink-soft" />
+          <span>
+            Today Devices: <strong className="text-ink">{todayUniqueDevices}</strong>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Repeat className="size-4 text-ink-soft" />
+          <span>
+            Repeat Visitors: <strong className="text-ink">{returningDevices.length}</strong>
+          </span>
+        </div>
+      </div>
+
+      {/* Chart Section & Device Hardware Breakdown */}
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Daily Traffic Chart */}
+        {/* Daily Visits Timeline Chart */}
         <div className="lg:col-span-2 bg-card border border-ink/10 p-6 space-y-6">
-          <div>
-            <h2 className="text-xs tracking-widest uppercase font-semibold">
-              Daily Visits Timeline
-            </h2>
-            <p className="text-xs text-ink-soft mt-1">
-              Page interactions and session footprints over the last 7 days.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xs tracking-widest uppercase font-semibold">
+                Traffic & Unique Devices Timeline
+              </h2>
+              <p className="text-xs text-ink-soft mt-1">
+                Comparing total page hits vs unique devices counted.
+              </p>
+            </div>
+            {/* Timeframe selector */}
+            <div className="flex items-center gap-1 bg-zinc-100 p-1 text-[11px] font-mono border border-zinc-200">
+              <button
+                onClick={() => setSelectedRange("7d")}
+                className={`px-2.5 py-1 ${selectedRange === "7d" ? "bg-ink text-canvas font-semibold" : "text-zinc-600 hover:text-ink"}`}
+              >
+                7 Days
+              </button>
+              <button
+                onClick={() => setSelectedRange("30d")}
+                className={`px-2.5 py-1 ${selectedRange === "30d" ? "bg-ink text-canvas font-semibold" : "text-zinc-600 hover:text-ink"}`}
+              >
+                30 Days
+              </button>
+              <button
+                onClick={() => setSelectedRange("all")}
+                className={`px-2.5 py-1 ${selectedRange === "all" ? "bg-ink text-canvas font-semibold" : "text-zinc-600 hover:text-ink"}`}
+              >
+                All
+              </button>
+            </div>
           </div>
+
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -2526,25 +2900,25 @@ function TrafficTab() {
                     fontSize: "11px",
                   }}
                 />
-                <Bar name="Views" dataKey="views" fill="#18181b" />
-                <Bar name="Visitors" dataKey="visitors" fill="#d4af37" />
+                <Bar name="Total Pageviews" dataKey="views" fill="#18181b" />
+                <Bar name="Unique Devices" dataKey="visitors" fill="#d4af37" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Device Breakdown */}
+        {/* Device Types Hardware Breakdown */}
         <div className="bg-card border border-ink/10 p-6 flex flex-col justify-between">
           <div>
             <h2 className="text-xs tracking-widest uppercase font-semibold">Devices & Platforms</h2>
             <p className="text-xs text-ink-soft mt-1">
-              Classification of customer endpoints by layout sizes.
+              Distribution of unique customer devices by form factor.
             </p>
           </div>
 
           <div className="space-y-6 my-6 flex-1 flex flex-col justify-center">
             {Object.entries(deviceCounts).map(([device, count]) => {
-              const ratio = totalViews > 0 ? (count / totalViews) * 100 : 0;
+              const ratio = uniqueVisitorsCount > 0 ? (count / uniqueVisitorsCount) * 100 : 0;
               return (
                 <div key={device} className="space-y-2">
                   <div className="flex justify-between items-center text-xs">
@@ -2557,7 +2931,7 @@ function TrafficTab() {
                       {device}
                     </span>
                     <span className="font-mono text-ink-soft">
-                      {count} ({ratio.toFixed(0)}%)
+                      {count} devices ({ratio.toFixed(0)}%)
                     </span>
                   </div>
                   <div className="w-full h-1.5 bg-zinc-100 rounded-none overflow-hidden">
@@ -2572,56 +2946,131 @@ function TrafficTab() {
           </div>
 
           <div className="text-[10px] text-ink-soft font-mono border-t border-ink/10 pt-4">
-            Total classified logs: {totalViews}
+            Total unique devices tracked: {uniqueVisitorsCount}
           </div>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Pages Visited */}
+      {/* Visitor Frequency & Page Popularity Grid */}
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Visit Frequency Distribution */}
+        <div className="bg-card border border-ink/10 p-6 space-y-6">
+          <div>
+            <h2 className="text-xs tracking-widest uppercase font-semibold">Visitor Frequency</h2>
+            <p className="text-xs text-ink-soft mt-1">
+              How often unique devices return to the app.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-ink font-medium">1 Visit (Single Visit)</span>
+              <span className="font-mono font-semibold">{freq1} devices</span>
+            </div>
+            <div className="w-full h-2 bg-zinc-100">
+              <div
+                className="h-full bg-zinc-400"
+                style={{
+                  width: `${uniqueVisitorsCount > 0 ? (freq1 / uniqueVisitorsCount) * 100 : 0}%`,
+                }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-xs pt-2">
+              <span className="text-ink font-medium">2 – 5 Visits (Returning)</span>
+              <span className="font-mono font-semibold">{freq2to5} devices</span>
+            </div>
+            <div className="w-full h-2 bg-zinc-100">
+              <div
+                className="h-full bg-gold"
+                style={{
+                  width: `${uniqueVisitorsCount > 0 ? (freq2to5 / uniqueVisitorsCount) * 100 : 0}%`,
+                }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-xs pt-2">
+              <span className="text-ink font-medium">6 – 10 Visits (Regulars)</span>
+              <span className="font-mono font-semibold">{freq6to10} devices</span>
+            </div>
+            <div className="w-full h-2 bg-zinc-100">
+              <div
+                className="h-full bg-zinc-800"
+                style={{
+                  width: `${uniqueVisitorsCount > 0 ? (freq6to10 / uniqueVisitorsCount) * 100 : 0}%`,
+                }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-xs pt-2">
+              <span className="text-ink font-medium">10+ Visits (Frequent)</span>
+              <span className="font-mono font-semibold">{freq10plus} devices</span>
+            </div>
+            <div className="w-full h-2 bg-zinc-100">
+              <div
+                className="h-full bg-emerald-600"
+                style={{
+                  width: `${uniqueVisitorsCount > 0 ? (freq10plus / uniqueVisitorsCount) * 100 : 0}%`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Popular Paths */}
         <div className="bg-card border border-ink/10 p-6 space-y-6">
           <div>
             <h2 className="text-xs tracking-widest uppercase font-semibold">
-              Popular Paths & Landing Pages
+              Popular Paths & Pages
             </h2>
             <p className="text-xs text-ink-soft mt-1">
-              Most clicked routes sorted by interaction depth.
+              Top routes by total hits and unique devices.
             </p>
           </div>
           <div className="divide-y divide-ink/10">
             {sortedPages.map((page, idx) => (
-              <div key={page.path} className="py-3 flex justify-between items-center text-xs">
-                <div className="flex items-center gap-3 overflow-hidden mr-4">
-                  <span className="font-mono text-ink-soft w-4">0{idx + 1}</span>
-                  <span className="font-mono bg-zinc-100 hover:bg-zinc-200 text-zinc-800 px-1.5 py-0.5 rounded truncate select-all">
+              <div key={page.path} className="py-2.5 flex justify-between items-center text-xs">
+                <div className="flex items-center gap-2.5 overflow-hidden mr-2">
+                  <span className="font-mono text-ink-soft text-[10px]">0{idx + 1}</span>
+                  <span className="font-mono bg-zinc-100 text-zinc-800 px-1.5 py-0.5 rounded truncate">
                     {page.path}
                   </span>
                 </div>
-                <span className="font-mono font-semibold shrink-0">{page.hits} hits</span>
+                <div className="text-right font-mono shrink-0">
+                  <span className="font-semibold">{page.hits} hits</span>
+                  <span className="text-[10px] text-ink-soft block">
+                    {page.uniqueDevices} devices
+                  </span>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Traffic Channels / Referrer and Live Feed */}
+        {/* Acquisition Channels */}
         <div className="bg-card border border-ink/10 p-6 space-y-6">
           <div>
             <h2 className="text-xs tracking-widest uppercase font-semibold">
               Acquisition Channels
             </h2>
-            <p className="text-xs text-ink-soft mt-1">Inbound referrers and link directories.</p>
+            <p className="text-xs text-ink-soft mt-1">Inbound referrers and source links.</p>
           </div>
           <div className="divide-y divide-ink/10">
             {sortedReferrers.length === 0 ? (
               <p className="text-xs text-ink-soft py-4">No referrer sources recorded yet.</p>
             ) : (
               sortedReferrers.map((ref) => (
-                <div key={ref.source} className="py-3 flex justify-between items-center text-xs">
-                  <span className="flex items-center gap-2 text-zinc-700 truncate mr-4">
+                <div key={ref.source} className="py-2.5 flex justify-between items-center text-xs">
+                  <span className="flex items-center gap-2 text-zinc-700 truncate mr-2">
                     <Compass className="size-3.5 text-zinc-400 shrink-0" />
-                    <span className="truncate">{ref.source}</span>
+                    <span className="truncate font-medium">{ref.source}</span>
                   </span>
-                  <span className="font-mono font-semibold shrink-0">{ref.count} sessions</span>
+                  <div className="text-right font-mono shrink-0">
+                    <span className="font-semibold">{ref.hits} hits</span>
+                    <span className="text-[10px] text-ink-soft block">
+                      {ref.uniqueDevices} devices
+                    </span>
+                  </div>
                 </div>
               ))
             )}
@@ -2629,57 +3078,146 @@ function TrafficTab() {
         </div>
       </div>
 
-      {/* Live Activity Log */}
+      {/* Full Unique Devices Directory & Traffic Report Table */}
       <div className="bg-card border border-ink/10 p-6 space-y-6">
-        <div>
-          <h2 className="text-xs tracking-widest uppercase font-semibold">
-            Live Traffic Audit Trail
-          </h2>
-          <p className="text-xs text-ink-soft mt-1">
-            Sequential list of recent browser navigation sessions.
-          </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xs tracking-widest uppercase font-semibold flex items-center gap-2">
+              <Users className="size-4 text-ink-soft" /> Full Traffic Report by Unique Device
+            </h2>
+            <p className="text-xs text-ink-soft mt-1">
+              Comprehensive list of all unique visitor devices and visit counts. Click any device to
+              inspect full visit history.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="size-3.5 absolute left-2.5 top-2.5 text-ink-soft" />
+              <input
+                type="text"
+                placeholder="Search device, browser, path..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-xs border border-ink/20 bg-transparent outline-none focus:border-ink w-60 font-mono"
+              />
+            </div>
+
+            {/* Filter Dropdown */}
+            <select
+              value={visitorTypeFilter}
+              onChange={(e) => setVisitorTypeFilter(e.target.value as any)}
+              className="py-1.5 px-3 text-xs border border-ink/20 bg-transparent outline-none focus:border-ink font-mono"
+            >
+              <option value="all">All Devices ({deviceList.length})</option>
+              <option value="returning">Returning ({returningDevices.length})</option>
+              <option value="single">Single Visit ({freq1})</option>
+            </select>
+
+            {/* Sort Dropdown */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="py-1.5 px-3 text-xs border border-ink/20 bg-transparent outline-none focus:border-ink font-mono"
+            >
+              <option value="visits_desc">Most Visits</option>
+              <option value="last_active">Recently Active</option>
+              <option value="first_seen">First Seen</option>
+            </select>
+          </div>
         </div>
+
+        {/* Devices Directory Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs min-w-[700px]">
+          <table className="w-full text-left text-xs min-w-[850px]">
             <thead>
               <tr className="border-b border-ink/10 text-ink-soft uppercase text-[10px] tracking-widest">
-                <th className="pb-3 font-semibold">Timestamp</th>
-                <th className="pb-3 font-semibold">Session Code</th>
-                <th className="pb-3 font-semibold">Page Route Path</th>
-                <th className="pb-3 font-semibold">Device</th>
-                <th className="pb-3 font-semibold">Browser</th>
-                <th className="pb-3 font-semibold">Source Link</th>
+                <th className="pb-3 font-semibold">Device Identifier</th>
+                <th className="pb-3 font-semibold">Hardware / Browser</th>
+                <th className="pb-3 font-semibold text-center">Total Visits</th>
+                <th className="pb-3 font-semibold text-center">Sessions</th>
+                <th className="pb-3 font-semibold">First Visit Date</th>
+                <th className="pb-3 font-semibold">Last Active</th>
+                <th className="pb-3 font-semibold">Top Landing Route</th>
+                <th className="pb-3 font-semibold text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink/5">
-              {events.slice(0, 15).map((evt) => (
-                <tr key={evt.id} className="hover:bg-zinc-50/50">
-                  <td className="py-3 font-mono text-[11px] text-ink-soft">
-                    {new Date(evt.timestamp).toLocaleString("en-NG", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })}
+              {filteredDevices.slice(0, 30).map((dev) => (
+                <tr key={dev.deviceId} className="hover:bg-zinc-50/70 transition-colors">
+                  <td className="py-3 font-mono text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-zinc-100 text-zinc-800 font-bold px-2 py-0.5 border border-zinc-200">
+                        {dev.deviceId.slice(0, 14)}...
+                      </span>
+                    </div>
                   </td>
-                  <td className="py-3 font-mono text-zinc-500">
-                    {evt.sessionId ? evt.sessionId.slice(-6) : "Unknown"}
-                  </td>
-                  <td className="py-3 font-mono font-medium text-zinc-900">{evt.path}</td>
                   <td className="py-3">
-                    <span className="bg-zinc-100 text-zinc-800 font-medium px-2 py-0.5 rounded text-[10px] font-mono">
-                      {evt.device}
+                    <span className="flex items-center gap-1.5 font-medium text-zinc-800">
+                      {dev.deviceType === "Desktop" && (
+                        <Laptop className="size-3.5 text-zinc-500" />
+                      )}
+                      {dev.deviceType === "Mobile" && (
+                        <Smartphone className="size-3.5 text-zinc-500" />
+                      )}
+                      {dev.deviceType === "Tablet" && (
+                        <Smartphone className="size-3.5 rotate-90 text-zinc-500" />
+                      )}
+                      <span>{dev.deviceType}</span>
+                      <span className="text-zinc-400">•</span>
+                      <span className="text-ink-soft font-mono text-[10px]">{dev.browser}</span>
                     </span>
                   </td>
-                  <td className="py-3 text-ink-soft font-mono text-[11px]">{evt.browser}</td>
-                  <td className="py-3 text-ink-soft truncate max-w-[200px]" title={evt.referrer}>
-                    {evt.referrer}
+                  <td className="py-3 text-center">
+                    <span
+                      className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
+                        dev.totalVisits > 5
+                          ? "bg-emerald-100 text-emerald-800"
+                          : dev.totalVisits > 1
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-zinc-100 text-zinc-700"
+                      }`}
+                    >
+                      {dev.totalVisits} visit{dev.totalVisits > 1 ? "s" : ""}
+                    </span>
+                  </td>
+                  <td className="py-3 text-center font-mono text-zinc-600 font-medium">
+                    {dev.sessionsCount}
+                  </td>
+                  <td className="py-3 font-mono text-[11px] text-ink-soft">
+                    {new Date(dev.firstSeen).toLocaleDateString("en-NG", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                  <td className="py-3 font-mono text-[11px] text-ink-soft">
+                    {new Date(dev.lastActive).toLocaleDateString("en-NG", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                  <td className="py-3 font-mono text-[11px] text-zinc-800 max-w-[160px] truncate">
+                    {dev.topPage}
+                  </td>
+                  <td className="py-3 text-right">
+                    <button
+                      onClick={() => setSelectedDeviceModal(dev)}
+                      className="border border-ink/20 hover:border-ink hover:bg-ink hover:text-canvas text-ink px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase transition-colors"
+                    >
+                      View History
+                    </button>
                   </td>
                 </tr>
               ))}
-              {events.length === 0 && (
+              {filteredDevices.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-ink-soft">
-                    No traffic logs parsed yet. Let visitors view the app.
+                  <td colSpan={8} className="py-8 text-center text-ink-soft font-mono text-xs">
+                    No visitor devices matching filter parameters.
                   </td>
                 </tr>
               )}
@@ -2687,6 +3225,119 @@ function TrafficTab() {
           </table>
         </div>
       </div>
+
+      {/* Device History Modal */}
+      <AnimatePresence>
+        {selectedDeviceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-canvas border border-ink/20 shadow-2xl p-6 max-w-2xl w-full space-y-5 max-h-[85vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between border-b border-ink/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-ink/5 p-2 border border-ink/10">
+                    <History className="size-5 text-ink" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-lg font-semibold text-ink">
+                      Device Visit History & Telemetry
+                    </h3>
+                    <p className="text-xs font-mono text-ink-soft">
+                      ID: {selectedDeviceModal.deviceId}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedDeviceModal(null)}
+                  className="p-1 text-ink-soft hover:text-ink transition-colors"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              {/* Device Overview Card */}
+              <div className="grid grid-cols-4 gap-3 bg-zinc-50 border border-ink/10 p-3 font-mono text-xs">
+                <div>
+                  <span className="text-[10px] text-ink-soft uppercase block">Total Visits</span>
+                  <strong className="text-base text-ink font-bold">
+                    {selectedDeviceModal.totalVisits}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-soft uppercase block font-mono">
+                    Sessions
+                  </span>
+                  <strong className="text-base text-ink font-bold">
+                    {selectedDeviceModal.sessionsCount}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-soft uppercase block">
+                    Device / Browser
+                  </span>
+                  <span className="font-medium">
+                    {selectedDeviceModal.deviceType} / {selectedDeviceModal.browser}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-soft uppercase block">First Seen</span>
+                  <span className="text-[11px]">
+                    {new Date(selectedDeviceModal.firstSeen).toLocaleDateString("en-NG", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {/* History Timeline Stream */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-ink/5">
+                <h4 className="text-[10px] tracking-widest uppercase font-semibold text-ink-soft pt-1">
+                  Individual Page Interactions ({selectedDeviceModal.history.length})
+                </h4>
+                {selectedDeviceModal.history.map((h, i) => (
+                  <div
+                    key={h.id || i}
+                    className="py-2 flex items-center justify-between text-xs font-mono"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-ink bg-zinc-100 px-1.5 py-0.5 rounded">
+                          {h.path}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-ink-soft block">
+                        Source: {h.referrer || "Direct Link"}
+                      </span>
+                    </div>
+                    <div className="text-right text-ink-soft text-[11px]">
+                      {new Date(h.timestamp).toLocaleString("en-NG", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-ink/10 pt-3 flex justify-end">
+                <button
+                  onClick={() => setSelectedDeviceModal(null)}
+                  className="px-4 py-2 bg-ink text-canvas hover:bg-gold hover:text-ink font-mono text-[10px] tracking-widest uppercase font-semibold transition-colors"
+                >
+                  Close History
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

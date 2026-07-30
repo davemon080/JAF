@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAds, type Ad, useCatalog } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
 import { compressImageToBase64 } from "@/lib/firebase";
+import { processProductImage } from "@/lib/image-processor";
 import { toast } from "sonner";
 import {
   Plus,
@@ -369,18 +370,33 @@ export function AdsTab() {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        const toastId = toast.loading("Processing image file...");
+                        const isOver20MB = file.size > 20 * 1024 * 1024;
+                        const mbSize = (file.size / (1024 * 1024)).toFixed(1);
+                        const toastId = toast.loading(
+                          isOver20MB
+                            ? `File is ${mbSize}MB (>20MB). Resizing via Web Worker to fit...`
+                            : "Uploading image file...",
+                        );
                         try {
-                          const base64 = await compressImageToBase64(file, 1200, 0.82);
-                          setImageUrl(base64);
-                          toast.success("Ad image attached (No Storage billing required)!", {
-                            id: toastId,
-                          });
+                          const res = await processProductImage(
+                            file,
+                            isOver20MB
+                              ? { maxDim: 1400, quality: 0.82, targetMaxBytes: 350000 }
+                              : { maxDim: 1600, quality: 0.9, targetMaxBytes: 450000 },
+                          );
+                          setImageUrl(res.base64Url);
+                          if (isOver20MB) {
+                            const processedMb = (res.processedSize / (1024 * 1024)).toFixed(2);
+                            toast.success(
+                              `Ad image (${mbSize}MB) resized to ${processedMb}MB via Web Worker!`,
+                              { id: toastId },
+                            );
+                          } else {
+                            toast.success("Ad image attached!", { id: toastId });
+                          }
                         } catch (err: unknown) {
                           const msg = err instanceof Error ? err.message : "Error";
-                          toast.error(`Image upload failed: ${msg}`, {
-                            id: toastId,
-                          });
+                          toast.error(`Image upload failed: ${msg}`, { id: toastId });
                         }
                       }}
                     />
