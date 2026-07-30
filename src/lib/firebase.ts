@@ -1336,6 +1336,49 @@ export function subscribeToTrafficEvents(callback: (events: any[]) => void) {
 }
 
 /**
+ * Helper to compress image file to high quality Base64 Data URL (storable in Firestore without bucket billing)
+ */
+export function compressImageToBase64(
+  fileOrBlob: File | Blob,
+  maxDim = 800,
+  quality = 0.75,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read image file"));
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Failed to load image element"));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } else {
+          resolve(event.target?.result as string);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(fileOrBlob);
+  });
+}
+
+/**
  * Helper to upload a base64 string or a File/Blob to Firebase Storage
  */
 export async function uploadImageToStorage(
@@ -1480,7 +1523,32 @@ export async function migrateAllProductsToStorage(): Promise<MigrationResult> {
         );
       }
     }
-    console.log(`[Storage Migration] Completed. Migrated ${result.migratedCount} products.`);
+
+    // Also migrate ads if any base64 ad images exist in Firestore
+    try {
+      const adsSnapshot = await getDocs(collection(db, "ads"));
+      for (const docSnap of adsSnapshot.docs) {
+        const ad = docSnap.data() as any;
+        if (ad?.imageUrl && ad.imageUrl.startsWith("data:")) {
+          try {
+            const ext = ad.imageUrl.match(/data:image\/(.*?);/)?.[1] || "jpg";
+            const fileName = `ad_${docSnap.id}_${Date.now()}.${ext}`;
+            const storageUrl = await uploadImageToStorage(ad.imageUrl, fileName);
+            await updateDoc(doc(db, "ads", docSnap.id), { imageUrl: storageUrl });
+            result.migratedCount++;
+          } catch (adErr: any) {
+            console.error(
+              `[Storage Migration] Failed to migrate ad image for ${docSnap.id}:`,
+              adErr,
+            );
+          }
+        }
+      }
+    } catch (adsErr) {
+      console.warn("[Storage Migration] Ads collection check skipped or empty:", adsErr);
+    }
+
+    console.log(`[Storage Migration] Completed. Migrated ${result.migratedCount} products/ads.`);
     return result;
   } catch (err: any) {
     console.error("[Storage Migration] Failed to complete product migration:", err);

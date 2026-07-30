@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAds, type Ad, useCatalog } from "@/lib/store";
 import { formatNaira } from "@/lib/format";
+import { compressImageToBase64 } from "@/lib/firebase";
 import { toast } from "sonner";
 import {
   Plus,
@@ -349,15 +350,42 @@ export function AdsTab() {
               {/* Image selection and path */}
               <div className="sm:col-span-2">
                 <label className="block text-[10px] uppercase font-semibold tracking-widest text-ink-soft mb-1.5">
-                  Visual Banner Image URL (Optional)
+                  Visual Banner Image (URL or File Upload)
                 </label>
-                <input
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/... or paste image URL"
-                  className="w-full bg-transparent border border-ink/20 px-3 py-2.5 text-sm outline-none focus:border-ink placeholder:text-ink-soft/40 mb-2"
-                />
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/... or upload image"
+                    className="flex-1 bg-transparent border border-ink/20 px-3 py-2 text-sm outline-none focus:border-ink placeholder:text-ink-soft/40"
+                  />
+                  <label className="bg-ink text-canvas hover:bg-ink/90 px-3 py-2 text-xs uppercase tracking-wider font-semibold cursor-pointer shrink-0 flex items-center gap-1.5">
+                    Upload File
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const toastId = toast.loading("Processing image file...");
+                        try {
+                          const base64 = await compressImageToBase64(file, 800, 0.75);
+                          setImageUrl(base64);
+                          toast.success("Ad image attached (No Storage billing required)!", {
+                            id: toastId,
+                          });
+                        } catch (err: unknown) {
+                          const msg = err instanceof Error ? err.message : "Error";
+                          toast.error(`Image upload failed: ${msg}`, {
+                            id: toastId,
+                          });
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <span className="text-[9px] uppercase tracking-wider text-ink-soft self-center">
                     Preset assets:

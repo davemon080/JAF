@@ -63,6 +63,7 @@ import {
   subscribeToTrafficEvents,
   isAnAdminEmail,
   uploadImageToStorage,
+  compressImageToBase64,
   migrateAllProductsToStorage,
   listStorageFiles,
   deleteStorageFile,
@@ -863,6 +864,44 @@ function ProductsTab() {
             </button>
           )}
           <button
+            onClick={async () => {
+              const toastId = toast.loading(
+                "Checking migration status & processing images to Cloud Storage bucket...",
+              );
+              try {
+                const res = await migrateAllProductsToStorage();
+                if (res.unauthorizedErrorDetected) {
+                  toast.error(
+                    "Firebase Storage write permission denied. Please configure Storage rules.",
+                    { id: toastId },
+                  );
+                } else if (res.failedCount > 0) {
+                  toast.success(
+                    `Migration partially complete: ${res.migratedCount} products successfully updated. ${res.failedCount} images encountered issues.`,
+                    { id: toastId },
+                  );
+                } else if (res.migratedCount === 0) {
+                  toast.success("No new images needed migration to your storage bucket.", {
+                    id: toastId,
+                  });
+                } else {
+                  toast.success(
+                    `Successfully migrated all ${res.migratedCount} product/ad images to Firebase Storage bucket!`,
+                    { id: toastId },
+                  );
+                }
+              } catch (err: any) {
+                toast.error(`Migration failed: ${err?.message || "Unknown error"}`, {
+                  id: toastId,
+                });
+              }
+            }}
+            className="border border-ink/20 hover:border-ink text-ink hover:bg-ink hover:text-canvas px-3 py-2 text-xs tracking-widest uppercase flex items-center gap-1.5 transition-colors font-medium"
+            title="Automatically upload all Firestore images to Firebase Cloud Storage bucket"
+          >
+            <UploadCloud className="size-3.5" /> Migrate Storage to Bucket
+          </button>
+          <button
             onClick={() => setEditing(blank())}
             className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase flex items-center gap-2"
           >
@@ -1095,101 +1134,30 @@ function ProductEditor({
   });
   const set = <K extends keyof Product>(k: K, v: Product[K]) => setP({ ...p, [k]: v });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Image file is too large (max 10MB).");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Image file is too large (max 15MB).");
       return;
     }
 
-    const toastId = toast.loading(`Uploading Image ${index + 1} to Storage...`);
+    const toastId = toast.loading(`Processing Image ${index + 1}...`);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Target max dimension 800px for superb quality with light payload
-        const maxDim = 800;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(
-            async (blob) => {
-              if (blob) {
-                try {
-                  const fileName = `product_${p.id || "new"}_image_${index}_${Date.now()}.jpg`;
-                  const downloadUrl = await uploadImageToStorage(blob, fileName);
-                  const updatedImages = [...p.images];
-                  updatedImages[index] = downloadUrl;
-                  set("images", updatedImages);
-                  toast.success(`Image ${index + 1} uploaded & compressed successfully!`, {
-                    id: toastId,
-                  });
-                } catch (err: any) {
-                  console.error("Storage upload failed:", err);
-                  toast.error(`Upload failed: ${err.message || "Unknown error"}`, { id: toastId });
-                  const errMsg = err?.message || String(err);
-                  if (
-                    err?.code === "storage/unauthorized" ||
-                    errMsg.toLowerCase().includes("unauthorized") ||
-                    errMsg.toLowerCase().includes("permission")
-                  ) {
-                    onUnauthorized?.();
-                  }
-                }
-              } else {
-                toast.error("Failed to compress image.", { id: toastId });
-              }
-            },
-            "image/jpeg",
-            0.75,
-          );
-        } else {
-          // Fallback to uploading raw file
-          (async () => {
-            try {
-              const fileName = `product_${p.id || "new"}_image_${index}_${Date.now()}_${file.name}`;
-              const downloadUrl = await uploadImageToStorage(file, fileName);
-              const updatedImages = [...p.images];
-              updatedImages[index] = downloadUrl;
-              set("images", updatedImages);
-              toast.success(`Image ${index + 1} uploaded successfully!`, { id: toastId });
-            } catch (err: any) {
-              console.error("Storage upload failed:", err);
-              toast.error(`Upload failed: ${err.message || "Unknown error"}`, { id: toastId });
-              const errMsg = err?.message || String(err);
-              if (
-                err?.code === "storage/unauthorized" ||
-                errMsg.toLowerCase().includes("unauthorized") ||
-                errMsg.toLowerCase().includes("permission")
-              ) {
-                onUnauthorized?.();
-              }
-            }
-          })();
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    try {
+      const base64Url = await compressImageToBase64(file, 800, 0.75);
+      const updatedImages = [...p.images];
+      updatedImages[index] = base64Url;
+      set("images", updatedImages);
+      toast.success(
+        `Image ${index + 1} attached (Stored in Firestore - No Storage billing required)!`,
+        { id: toastId },
+      );
+    } catch (err: any) {
+      console.error("Image processing failed:", err);
+      toast.error(`Image processing failed: ${err?.message || "Unknown error"}`, { id: toastId });
+    }
   };
 
   return (
