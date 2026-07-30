@@ -287,8 +287,9 @@ export async function fetchProductsFromFirestore(): Promise<Product[]> {
 
 export async function saveProductToFirestore(product: Product): Promise<void> {
   try {
-    const docRef = doc(db, "products", product.id);
-    await setDoc(docRef, cleanUndefined(product));
+    const sanitized = await sanitizeProductForFirestore(product);
+    const docRef = doc(db, "products", sanitized.id);
+    await setDoc(docRef, cleanUndefined(sanitized));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `products/${product.id}`);
   }
@@ -469,8 +470,17 @@ export async function fetchAdsFromFirestore(): Promise<Ad[]> {
 
 export async function saveAdToFirestore(ad: Ad): Promise<void> {
   try {
-    const docRef = doc(db, "ads", ad.id);
-    await setDoc(docRef, cleanUndefined(ad));
+    let sanitizedAd = ad;
+    if (ad.imageUrl && ad.imageUrl.startsWith("data:") && ad.imageUrl.length > 280000) {
+      try {
+        const compressed = await compressImageToBase64(ad.imageUrl, 1000, 0.78);
+        sanitizedAd = { ...ad, imageUrl: compressed };
+      } catch (err) {
+        console.warn("Could not compress oversized ad image", err);
+      }
+    }
+    const docRef = doc(db, "ads", sanitizedAd.id);
+    await setDoc(docRef, cleanUndefined(sanitizedAd));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `ads/${ad.id}`);
   }
@@ -936,6 +946,13 @@ export async function seedFirebaseIfEmpty() {
       { merge: true },
     );
 
+    // Ensure default 4-digit migration PIN is seeded in database as 0802
+    const pinRef = doc(db, "admin", "pin");
+    const pinSnap = await getDoc(pinRef);
+    if (!pinSnap.exists()) {
+      await setDoc(pinRef, { pin: "0802", updatedAt: new Date().toISOString() });
+    }
+
     // Keep adminjaf@gmail.com as backup admin
     const adminUserRef = doc(db, "users", "adminjaf@gmail.com");
     await setDoc(
@@ -1057,6 +1074,35 @@ export async function updateAdminCredentials(email: string, password: string) {
     }
   } catch (err) {
     console.error("Error updating admin credentials in Firestore:", err);
+    throw err;
+  }
+}
+
+export async function getAdminPin(): Promise<string> {
+  try {
+    const pinSnap = await getDoc(doc(db, "admin", "pin"));
+    if (pinSnap.exists() && pinSnap.data()?.pin) {
+      return String(pinSnap.data().pin);
+    }
+    return "0802";
+  } catch (err) {
+    console.error("Error getting admin PIN from Firestore:", err);
+    return "0802";
+  }
+}
+
+export async function updateAdminPin(pin: string): Promise<void> {
+  try {
+    const cleanPin = pin.trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
+      throw new Error("PIN must be a 4-digit numeric code (e.g. 0802).");
+    }
+    await setDoc(doc(db, "admin", "pin"), {
+      pin: cleanPin,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("Error updating admin PIN in Firestore:", err);
     throw err;
   }
 }
@@ -1336,46 +1382,97 @@ export function subscribeToTrafficEvents(callback: (events: any[]) => void) {
 }
 
 /**
- * Helper to compress image file to high quality Base64 Data URL (storable in Firestore without bucket billing)
+ * Helper to compress image file or data URL to crisp high quality Base64 Data URL,
+ * dynamically guaranteed to stay under Firestore's 1MB document property limit (~280KB max base64 per image).
  */
 export function compressImageToBase64(
-  fileOrBlob: File | Blob,
-  maxDim = 800,
-  quality = 0.75,
+  fileOrBlobOrUrl: File | Blob | string,
+  maxDim = 1200,
+  initialQuality = 0.82,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read image file"));
-    reader.onload = (event) => {
+    const processSrc = (src: string) => {
       const img = new Image();
       img.onerror = () => reject(new Error("Failed to load image element"));
       img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
+        const attempt = (dim: number, q: number): string => {
+          let width = img.width;
+          let height = img.height;
+          if (width > dim || height > dim) {
+            if (width > height) {
+              height = Math.round((height * dim) / width);
+              width = dim;
+            } else {
+              width = Math.round((width * dim) / height);
+              height = dim;
+            }
           }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, width);
+          canvas.height = Math.max(1, height);
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return src;
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", quality));
+          return canvas.toDataURL("image/jpeg", q);
+        };
+
+        let res = attempt(maxDim, initialQuality);
+        const MAX_CHARS = 280000; // ~210KB binary size limit per image
+        if (res.length > MAX_CHARS) {
+          res = attempt(900, 0.76);
+        }
+        if (res.length > MAX_CHARS) {
+          res = attempt(750, 0.68);
+        }
+        resolve(res);
+      };
+      img.src = src;
+    };
+
+    if (typeof fileOrBlobOrUrl === "string") {
+      processSrc(fileOrBlobOrUrl);
+    } else {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Failed to read image file"));
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          processSrc(event.target.result as string);
         } else {
-          resolve(event.target?.result as string);
+          reject(new Error("Failed to read image file data"));
         }
       };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(fileOrBlob);
+      reader.readAsDataURL(fileOrBlobOrUrl);
+    }
   });
+}
+
+/**
+ * Sanitizes product base64 images to prevent Firestore 1MB document property limit errors
+ */
+async function sanitizeProductForFirestore(product: Product): Promise<Product> {
+  if (!product.images || !Array.isArray(product.images) || product.images.length === 0) {
+    return product;
+  }
+
+  let hasChanged = false;
+  const newImages = [...product.images];
+
+  for (let i = 0; i < newImages.length; i++) {
+    const img = newImages[i];
+    if (typeof img === "string" && img.startsWith("data:") && img.length > 280000) {
+      try {
+        const compressed = await compressImageToBase64(img, 1000, 0.78);
+        newImages[i] = compressed;
+        hasChanged = true;
+      } catch (err) {
+        console.warn(`Could not compress oversized base64 image at index ${i}`, err);
+      }
+    }
+  }
+
+  return hasChanged ? { ...product, images: newImages } : product;
 }
 
 /**

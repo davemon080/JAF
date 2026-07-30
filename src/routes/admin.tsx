@@ -52,10 +52,15 @@ import {
   Megaphone,
   Activity,
   Settings,
+  Lock,
+  ShieldCheck,
+  Key,
 } from "lucide-react";
 import {
   getAdminCredentials,
   updateAdminCredentials,
+  getAdminPin,
+  updateAdminPin,
   customSignIn,
   fetchContactMessages,
   deleteContactMessageFromFirestore,
@@ -864,44 +869,6 @@ function ProductsTab() {
             </button>
           )}
           <button
-            onClick={async () => {
-              const toastId = toast.loading(
-                "Checking migration status & processing images to Cloud Storage bucket...",
-              );
-              try {
-                const res = await migrateAllProductsToStorage();
-                if (res.unauthorizedErrorDetected) {
-                  toast.error(
-                    "Firebase Storage write permission denied. Please configure Storage rules.",
-                    { id: toastId },
-                  );
-                } else if (res.failedCount > 0) {
-                  toast.success(
-                    `Migration partially complete: ${res.migratedCount} products successfully updated. ${res.failedCount} images encountered issues.`,
-                    { id: toastId },
-                  );
-                } else if (res.migratedCount === 0) {
-                  toast.success("No new images needed migration to your storage bucket.", {
-                    id: toastId,
-                  });
-                } else {
-                  toast.success(
-                    `Successfully migrated all ${res.migratedCount} product/ad images to Firebase Storage bucket!`,
-                    { id: toastId },
-                  );
-                }
-              } catch (err: any) {
-                toast.error(`Migration failed: ${err?.message || "Unknown error"}`, {
-                  id: toastId,
-                });
-              }
-            }}
-            className="border border-ink/20 hover:border-ink text-ink hover:bg-ink hover:text-canvas px-3 py-2 text-xs tracking-widest uppercase flex items-center gap-1.5 transition-colors font-medium"
-            title="Automatically upload all Firestore images to Firebase Cloud Storage bucket"
-          >
-            <UploadCloud className="size-3.5" /> Migrate Storage to Bucket
-          </button>
-          <button
             onClick={() => setEditing(blank())}
             className="bg-ink text-canvas px-4 py-2 text-xs tracking-widest uppercase flex items-center gap-2"
           >
@@ -1146,7 +1113,7 @@ function ProductEditor({
     const toastId = toast.loading(`Processing Image ${index + 1}...`);
 
     try {
-      const base64Url = await compressImageToBase64(file, 800, 0.75);
+      const base64Url = await compressImageToBase64(file, 1200, 0.82);
       const updatedImages = [...p.images];
       updatedImages[index] = base64Url;
       set("images", updatedImages);
@@ -1733,7 +1700,7 @@ function ZonesTab() {
   );
 }
 
-// ---------- SETTINGS (Admin Password / Email Change) ----------
+// ---------- SETTINGS (Admin Password / Email Change & Storage Migration) ----------
 function SettingsTab() {
   const [email, setEmail] = useState(() => {
     try {
@@ -1751,6 +1718,7 @@ function SettingsTab() {
       return "";
     }
   });
+  const [pin, setPin] = useState("0802");
   const [loading, setLoading] = useState(() => {
     try {
       return !localStorage.getItem("jaf_cached_admin_email");
@@ -1759,9 +1727,15 @@ function SettingsTab() {
     }
   });
   const [saving, setSaving] = useState(false);
+  const [savingPin, setSavingPin] = useState(false);
+
+  // Modal State for PIN authorization before storage migration
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [inputPin, setInputPin] = useState("");
+  const [migrating, setMigrating] = useState(false);
 
   useEffect(() => {
-    getAdminCredentials().then((creds) => {
+    Promise.all([getAdminCredentials(), getAdminPin()]).then(([creds, dbPin]) => {
       if (creds) {
         setEmail(creds.email);
         setPassword(creds.password);
@@ -1771,6 +1745,9 @@ function SettingsTab() {
         } catch (e) {
           console.error("Failed to save admin credentials cache:", e);
         }
+      }
+      if (dbPin) {
+        setPin(dbPin);
       }
       setLoading(false);
     });
@@ -1793,6 +1770,76 @@ function SettingsTab() {
     }
   };
 
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPin = pin.trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
+      toast.error("PIN must be a 4-digit code (e.g. 0802).");
+      return;
+    }
+    setSavingPin(true);
+    try {
+      await updateAdminPin(cleanPin);
+      toast.success("Migration PIN updated successfully in database!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update PIN.");
+    } finally {
+      setSavingPin(false);
+    }
+  };
+
+  const handleAuthorizeMigration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanInput = inputPin.trim();
+    if (!cleanInput) {
+      toast.error("Please enter your 4-digit PIN.");
+      return;
+    }
+
+    // Verify PIN against Firestore DB
+    const storedPin = await getAdminPin();
+    if (cleanInput !== storedPin.trim()) {
+      toast.error("Incorrect 4-digit PIN! Access denied.");
+      return;
+    }
+
+    setShowPinModal(false);
+    setInputPin("");
+    setMigrating(true);
+
+    const toastId = toast.loading(
+      "PIN authorized! Checking migration status & processing images to Cloud Storage bucket...",
+    );
+    try {
+      const res = await migrateAllProductsToStorage();
+      if (res.unauthorizedErrorDetected) {
+        toast.error("Firebase Storage write permission denied. Please configure Storage rules.", {
+          id: toastId,
+        });
+      } else if (res.failedCount > 0) {
+        toast.success(
+          `Migration partially complete: ${res.migratedCount} products successfully updated. ${res.failedCount} images encountered issues.`,
+          { id: toastId },
+        );
+      } else if (res.migratedCount === 0) {
+        toast.success("No new images needed migration to your storage bucket.", {
+          id: toastId,
+        });
+      } else {
+        toast.success(
+          `Successfully migrated all ${res.migratedCount} product/ad images to Firebase Storage bucket!`,
+          { id: toastId },
+        );
+      }
+    } catch (err: any) {
+      toast.error(`Migration failed: ${err?.message || "Unknown error"}`, {
+        id: toastId,
+      });
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="text-sm text-ink-soft animate-pulse py-10">
@@ -1802,53 +1849,190 @@ function SettingsTab() {
   }
 
   return (
-    <div className="space-y-6 max-w-lg">
+    <div className="space-y-8 max-w-2xl">
       <div>
         <h1 className="font-display text-4xl font-semibold tracking-tighter">Console Settings</h1>
         <p className="text-sm text-ink-soft mt-1">
-          Manage operations credentials stored securely in Firestore.
+          Manage operations credentials and storage migration security settings stored in Firestore.
         </p>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-4 bg-card border border-ink/10 p-6">
-        <div>
-          <label className="block">
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
-              Admin Email
-            </span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink"
-              required
-            />
-          </label>
+      {/* Admin Credentials Form */}
+      <div className="bg-card border border-ink/10 p-6 space-y-4">
+        <h2 className="text-xs tracking-widest uppercase font-semibold text-ink flex items-center gap-2">
+          <Key className="size-4 text-ink-soft" /> Console Login Credentials
+        </h2>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label className="block">
+              <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+                Admin Email
+              </span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink"
+                required
+              />
+            </label>
+          </div>
+
+          <div>
+            <label className="block">
+              <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+                Admin Password
+              </span>
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink font-mono"
+                required
+              />
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="bg-ink text-canvas hover:bg-gold hover:text-ink px-5 py-2.5 text-xs font-semibold tracking-widest uppercase transition-colors disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save Credentials"}
+          </button>
+        </form>
+      </div>
+
+      {/* Migration Security 4-Digit PIN */}
+      <div className="bg-card border border-ink/10 p-6 space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-xs tracking-widest uppercase font-semibold text-ink flex items-center gap-2">
+            <Lock className="size-4 text-ink-soft" /> 4-Digit Migration PIN
+          </h2>
+          <p className="text-xs text-ink-soft">
+            Security PIN required to authorize migrating Firestore base64 images to Firebase
+            Storage.
+          </p>
+        </div>
+
+        <form onSubmit={handleSavePin} className="space-y-4">
+          <div>
+            <label className="block">
+              <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
+                Security PIN (4 Digits)
+              </span>
+              <input
+                type="password"
+                maxLength={4}
+                pattern="\d{4}"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="••••"
+                className="w-40 border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink font-mono tracking-widest text-center text-lg font-bold"
+                required
+              />
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={savingPin}
+            className="bg-ink text-canvas hover:bg-gold hover:text-ink px-5 py-2.5 text-xs font-semibold tracking-widest uppercase transition-colors disabled:opacity-50"
+          >
+            {savingPin ? "Updating PIN..." : "Save Migration PIN"}
+          </button>
+        </form>
+      </div>
+
+      {/* Storage Migration Utility */}
+      <div className="bg-card border border-ink/10 p-6 space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-xs tracking-widest uppercase font-semibold text-ink flex items-center gap-2">
+            <UploadCloud className="size-4 text-ink-soft" /> Cloud Storage Bucket Migration
+          </h2>
+          <p className="text-xs text-ink-soft leading-relaxed">
+            Upload all inline Firestore Base64 images for products and ads directly to your Firebase
+            Storage bucket. Requires entering your 4-digit security PIN to execute.
+          </p>
         </div>
 
         <div>
-          <label className="block">
-            <span className="text-[10px] tracking-widest uppercase font-medium block mb-1.5">
-              Admin Password
-            </span>
-            <input
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-ink/20 px-3 py-2 text-sm bg-transparent outline-none focus:border-ink font-mono"
-              required
-            />
-          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setInputPin("");
+              setShowPinModal(true);
+            }}
+            disabled={migrating}
+            className="border border-ink hover:bg-ink hover:text-canvas text-ink px-5 py-3 text-xs tracking-widest uppercase flex items-center gap-2 transition-colors font-semibold"
+          >
+            <UploadCloud className="size-4" />
+            {migrating ? "Migration In Progress..." : "Migrate Storage to Bucket"}
+          </button>
         </div>
+      </div>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="bg-ink text-canvas hover:bg-gold hover:text-ink px-5 py-3 text-xs font-semibold tracking-widest uppercase transition-colors disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save Credentials"}
-        </button>
-      </form>
+      {/* Modal for entering 4-digit PIN */}
+      <AnimatePresence>
+        {showPinModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-canvas border border-ink/20 shadow-2xl p-6 max-w-sm w-full space-y-5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-ink/5 p-2.5 border border-ink/10">
+                  <ShieldCheck className="size-6 text-ink" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-semibold tracking-tight text-ink">
+                    Authorization Required
+                  </h3>
+                  <p className="text-xs text-ink-soft">Enter 4-Digit Migration PIN</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleAuthorizeMigration} className="space-y-4">
+                <div>
+                  <label className="block text-center">
+                    <span className="text-[10px] tracking-widest uppercase font-medium block mb-2 text-ink-soft">
+                      4-Digit Security PIN
+                    </span>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      autoFocus
+                      value={inputPin}
+                      onChange={(e) => setInputPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="••••"
+                      className="w-36 mx-auto border border-ink/30 px-3 py-2 text-center text-xl font-mono tracking-[0.5em] bg-transparent outline-none focus:border-ink font-bold"
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPinModal(false)}
+                    className="px-4 py-2 border border-ink/20 hover:bg-ink/5 font-mono text-[10px] tracking-widest uppercase transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-ink text-canvas hover:bg-gold hover:text-ink font-mono text-[10px] tracking-widest uppercase font-semibold transition-colors shadow-xs"
+                  >
+                    Verify & Migrate
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

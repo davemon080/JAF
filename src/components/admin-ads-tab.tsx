@@ -371,7 +371,7 @@ export function AdsTab() {
                         if (!file) return;
                         const toastId = toast.loading("Processing image file...");
                         try {
-                          const base64 = await compressImageToBase64(file, 800, 0.75);
+                          const base64 = await compressImageToBase64(file, 1200, 0.82);
                           setImageUrl(base64);
                           toast.success("Ad image attached (No Storage billing required)!", {
                             id: toastId,
